@@ -1,88 +1,123 @@
 import Foundation
 import SwiftUI
 
+@MainActor
 @Observable
 final class ChatViewModel {
-    // MARK: - 发布属性
-
     var messages: [ChatMessage] = []
     var inputText: String = ""
     var isLoading: Bool = false
     var errorMessage: String?
     let character: CharacterProfile
 
-    // MARK: - 依赖
-
     private let store: any MessageStore
+    private let contextBuilder: ContextBuilder
+    private let provider: any LLMProvider
 
-    // MARK: - 初始化
-
-    init(store: any MessageStore, character: CharacterProfile = .defaultProfile()) {
+    init(
+        store: any MessageStore,
+        character: CharacterProfile = .defaultProfile(),
+        contextBuilder: ContextBuilder = ContextBuilder(),
+        provider: any LLMProvider = OpenAICompatibleProvider()
+    ) {
         self.store = store
         self.character = character
+        self.contextBuilder = contextBuilder
+        self.provider = provider
         loadMessages()
     }
 
-    // MARK: - 用户操作
-
     func sendMessage() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, !isLoading else { return }
 
-        let userMessage = ChatMessage(
-            role: .user,
-            content: trimmed,
-            status: .sending
-        )
-        messages.append(userMessage)
+        let userMessage = ChatMessage(role: .user, content: trimmed, status: .sent)
+        do {
+            try store.saveMessage(userMessage)
+            messages.append(userMessage)
+        } catch {
+            errorMessage = "消息保存失败"
+            return
+        }
         inputText = ""
+
+        let assistantID = UUID()
+        messages.append(ChatMessage(
+            id: assistantID, role: .assistant, content: "", status: .sending
+        ))
         isLoading = true
         errorMessage = nil
 
-        do {
-            try store.saveMessage(userMessage)
-            // 更新状态为 sent
-            var sent = userMessage
-            sent.status = .sent
-            if let idx = messages.firstIndex(where: { $0.id == userMessage.id }) {
-                messages[idx] = sent
-            }
-            try store.updateMessage(sent)
-        } catch {
-            var failed = userMessage
-            failed.status = .failed
-            failed.errorMessage = "保存失败"
-            if let idx = messages.firstIndex(where: { $0.id == userMessage.id }) {
-                messages[idx] = failed
-            }
-            errorMessage = "消息保存失败"
-            isLoading = false
-            return
+        let capturedID = assistantID
+        // Swift 6: @MainActor 上下文内直接 await，不需要 Task {}
+        Task { @MainActor in
+            await callLLM(assistantID: capturedID)
         }
-
-        // 生成占位回复（明确标记为本地占位，不伪装真实模型回复）
-        let placeholder = ChatMessage(
-            role: .assistant,
-            content: "[本地占位回复] 我看到了。真正的模型回复将在接入 API 后替换此消息。",
-            status: .sent
-        )
-        messages.append(placeholder)
-
-        do {
-            try store.saveMessage(placeholder)
-        } catch {
-            errorMessage = "保存占位回复失败"
-        }
-
-        isLoading = false
     }
 
     func loadMessages() {
+        do { messages = try store.loadMessages() }
+        catch { messages = []; errorMessage = "加载消息失败" }
+    }
+
+    // MARK: - LLM Call
+
+    private func callLLM(assistantID: UUID) async {
         do {
-            messages = try store.loadMessages()
+            let allMessages = try store.loadMessages()
+            let requestMessages = contextBuilder.buildRequestMessages(
+                recentMessages: allMessages, character: character
+            )
+            let config = Self.readConfig()
+            let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 800)
+            let response = try await provider.send(request, config: config)
+
+            let updated = ChatMessage(
+                id: assistantID, role: .assistant,
+                content: response.content, status: .sent
+            )
+            try store.updateMessage(updated)
+            if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
+                messages[idx] = updated
+            }
+        } catch let error as AppError {
+            failMessage(id: assistantID, message: error.userFacingMessage)
         } catch {
-            messages = []
-            errorMessage = "加载消息失败"
+            failMessage(id: assistantID, message: "发生未知错误，请重试。")
+        }
+        isLoading = false
+    }
+
+    private func failMessage(id: UUID, message: String) {
+        var failed = ChatMessage(id: id, role: .assistant, content: "", status: .failed)
+        failed.errorMessage = message
+        try? store.updateMessage(failed)
+        if let idx = messages.firstIndex(where: { $0.id == id }) {
+            messages[idx] = failed
+        }
+        errorMessage = message
+    }
+
+    private static func readConfig() -> ProviderConfig {
+        let d = UserDefaults.standard
+        return ProviderConfig(
+            baseURL: d.string(forKey: "ProviderSettings.baseURL") ?? "",
+            modelName: d.string(forKey: "ProviderSettings.modelName") ?? "",
+            providerName: d.string(forKey: "ProviderSettings.providerName") ?? "OpenAI-compatible",
+            apiKeyStoredInKeychain: false
+        )
+    }
+}
+
+// MARK: - Error helper
+
+private extension AppError {
+    var userFacingMessage: String {
+        switch self {
+        case .provider:
+            return "模型服务返回错误，请检查配置或稍后再试。"
+        default:
+            return userMessage
         }
     }
 }

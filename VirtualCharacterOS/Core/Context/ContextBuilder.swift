@@ -2,7 +2,7 @@ import Foundation
 
 /// MVP 0 最小 Context Builder。
 /// 组装 system prompt + 最近消息为 LLM 请求结构。
-struct ContextBuilder {
+struct ContextBuilder: Sendable {
     let maxRecentMessages: Int
 
     init(maxRecentMessages: Int = 20) {

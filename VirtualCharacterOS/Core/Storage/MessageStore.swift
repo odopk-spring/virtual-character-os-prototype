@@ -1,7 +1,7 @@
 import Foundation
 
 /// 本地消息持久化协议。MVP 0 仅支持单角色消息。
-protocol MessageStore {
+protocol MessageStore: Sendable {
     func loadMessages() throws -> [ChatMessage]
     func saveMessage(_ message: ChatMessage) throws
     func updateMessage(_ message: ChatMessage) throws

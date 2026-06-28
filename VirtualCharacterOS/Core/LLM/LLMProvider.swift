@@ -1,7 +1,7 @@
 import Foundation
 
 /// LLM Provider 抽象协议。每个 Provider 实现一种 API 格式。
-protocol LLMProvider {
+protocol LLMProvider: Sendable {
     /// 人类可读的 Provider 标识，如 "OpenAI"、"DeepSeek"。
     var providerName: String { get }
 
