@@ -4,6 +4,7 @@ struct ChatView: View {
     @State private var viewModel: ChatViewModel
     @State private var showSettings: Bool = false
     @State private var characterAvatar: UIImage?
+    @State private var restoreTargetMessage: ChatMessage?
 
     init(store: any MessageStore) {
         _viewModel = State(initialValue: ChatViewModel(store: store))
@@ -43,7 +44,8 @@ struct ChatView: View {
                                 ChatBubbleView(
                                     message: message,
                                     availableWidth: geometry.size.width,
-                                    characterAvatarImage: characterAvatar
+                                    characterAvatarImage: characterAvatar,
+                                    onRestore: { msg in restoreTargetMessage = msg }
                                 )
                                 .id(message.id)
                             }
@@ -84,6 +86,20 @@ struct ChatView: View {
             }
         }
         .navigationBarHidden(true)
+        .alert("从这里重新开始", isPresented: .init(
+            get: { restoreTargetMessage != nil },
+            set: { if !$0 { restoreTargetMessage = nil } }
+        )) {
+            Button("取消", role: .cancel) { restoreTargetMessage = nil }
+            Button("确认") {
+                if let msg = restoreTargetMessage {
+                    viewModel.createBranch(from: msg)
+                }
+                restoreTargetMessage = nil
+            }
+        } message: {
+            Text("将从这条消息创建一个新分支。原对话会保留，之后的新消息会进入新分支。")
+        }
     }
 }
 

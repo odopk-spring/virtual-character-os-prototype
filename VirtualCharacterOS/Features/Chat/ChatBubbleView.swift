@@ -6,6 +6,7 @@ struct ChatBubbleView: View {
     let message: ChatMessage
     let availableWidth: CGFloat
     var characterAvatarImage: UIImage? = nil
+    var onRestore: ((ChatMessage) -> Void)? = nil
 
     private let avatarSize: CGFloat = 40
 
@@ -45,6 +46,13 @@ struct ChatBubbleView: View {
                         UIPasteboard.general.string = message.content
                     } label: {
                         Label("复制", systemImage: "doc.on.doc")
+                    }
+                    if message.status == .sent {
+                        Button {
+                            onRestore?(message)
+                        } label: {
+                            Label("从这里重新开始", systemImage: "arrow.triangle.branch")
+                        }
                     }
                 }
 

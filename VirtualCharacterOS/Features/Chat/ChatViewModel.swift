@@ -85,8 +85,12 @@ final class ChatViewModel {
     }
 
     func loadMessages() {
-        do { messages = try store.loadMessages(for: activeBranchID) }
+        do { messages = try loadVisibleMessagesForActiveBranch() }
         catch { messages = []; errorMessage = "加载消息失败" }
+    }
+
+    func reloadMessages() {
+        loadMessages()
     }
 
     /// 重新加载角色档案（从编辑器返回时调用）。
@@ -94,11 +98,61 @@ final class ChatViewModel {
         character = Self.readCharacterProfile(store: profileStore)
     }
 
+    // MARK: - Branch Operations
+
+    /// 从指定消息创建新分支并切换。
+    func createBranch(from message: ChatMessage) {
+        let now = Date()
+
+        // 读取当前分支信息
+        let allBranches = (try? branchStore.loadBranches()) ?? []
+        let parentBranch = allBranches.first(where: { $0.id == activeBranchID })
+
+        // 将旧 active branch 设为非 active
+        if let oldIdx = allBranches.firstIndex(where: { $0.id == activeBranchID }) {
+            var old = allBranches[oldIdx]
+            old.isActive = false
+            try? branchStore.updateBranch(old)
+        }
+
+        // 创建新分支
+        let dateStr = DateFormatter()
+        dateStr.locale = Locale(identifier: "zh_CN")
+        dateStr.dateFormat = "MM-dd HH:mm"
+        let newBranch = ConversationBranch(
+            id: UUID(),
+            title: "分支 \(dateStr.string(from: now))",
+            rootMessageID: message.id,
+            parentBranchID: activeBranchID,
+            createdAt: now,
+            updatedAt: now,
+            rootMessageCreatedAt: message.createdAt,
+            parentBranchCreatedAt: parentBranch?.createdAt ?? now,
+            lastMessageAt: message.createdAt,
+            lastActivatedAt: now,
+            isActive: true
+        )
+
+        do {
+            try branchStore.saveBranch(newBranch)
+        } catch {
+            errorMessage = "创建分支失败"
+            return
+        }
+
+        // 切换 active branch
+        activeBranchID = newBranch.id
+        ActiveBranchStore.setActiveBranchID(newBranch.id)
+
+        // 重新加载可见消息
+        loadMessages()
+    }
+
     // MARK: - LLM Call
 
     private func callLLM(assistantID: UUID, branchID: UUID) async {
         do {
-            let branchMessages = try store.loadMessages(for: branchID)
+            let branchMessages = try loadVisibleMessagesForActiveBranch()
             let supplement = Self.readCharacterSupplement()
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()
@@ -271,6 +325,20 @@ final class ChatViewModel {
     static func readWorldBookEntries() -> [WorldBookEntry] {
         guard let store = try? FileWorldBookStore() else { return [] }
         return (try? store.loadEntries()) ?? []
+    }
+
+    /// 读取 active branch 可见消息（含继承历史 + 自有消息）。
+    private func loadVisibleMessagesForActiveBranch() throws -> [ChatMessage] {
+        let branches = (try? branchStore.loadBranches()) ?? []
+        let activeBranch = branches.first(where: { $0.id == activeBranchID })
+            ?? ConversationBranch.main(now: Date())
+
+        let allMessages = try store.loadMessages()
+        return BranchMessageResolver.visibleMessages(
+            activeBranch: activeBranch,
+            allBranches: branches,
+            allMessages: allMessages
+        )
     }
 
     // MARK: - Branch Timestamps
