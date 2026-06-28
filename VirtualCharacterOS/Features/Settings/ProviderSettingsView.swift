@@ -136,6 +136,18 @@ struct ProviderSettingsView: View {
                 Text("角色记忆")
             }
 
+            // MARK: - WorldBook
+
+            Section {
+                NavigationLink {
+                    WorldBookListView()
+                } label: {
+                    Label("世界书管理", systemImage: "books.vertical")
+                }
+            } header: {
+                Text("世界书")
+            }
+
             // MARK: - Actions
 
             Section {
