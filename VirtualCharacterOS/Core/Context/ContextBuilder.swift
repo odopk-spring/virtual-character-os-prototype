@@ -124,12 +124,68 @@ struct ContextBuilder: Sendable {
         return markers.contains(where: { text.contains($0) })
     }
 
+    /// 判断用户是否可能回答了问题。V1.1 支持 A还是B 关键词匹配。
     private func userLikelyAnswered(question: String, userText: String) -> Bool {
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 太短 → 未回答
         if trimmed.count <= 3 { return false }
+
+        // 明显转移话题 → 未回答
         let deflectMarkers = ["先不说", "先不管", "后面再", "换个话题", "先别管", "再说"]
         if deflectMarkers.contains(where: { trimmed.contains($0) }) { return false }
-        return true
+
+        // 从问题中提取关键词（A还是B 结构中的选项）
+        let optionKeywords = extractOptionKeywords(from: question)
+
+        if optionKeywords.isEmpty {
+            // 没有明确选项 → 超过 3 字且非转移 → 已回答
+            return true
+        }
+
+        // 有明确选项 → 检查用户是否提到了至少一个选项
+        return optionKeywords.contains(where: { trimmed.contains($0) })
+    }
+
+    /// 从问题中提取 "A还是B" 结构的选项关键词。
+    /// 如 "你想先改风格还是头像？" → ["格", "头像"]（取最后/最前 2-3 个中文字）
+    private func extractOptionKeywords(from question: String) -> [String] {
+        guard question.contains("还是") else { return [] }
+
+        let parts = question.components(separatedBy: "还是")
+        guard parts.count >= 2 else { return [] }
+
+        let beforePart = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let afterPart = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var keywords: [String] = []
+
+        // 选项 A：取"还是"前最后一个 2-4 字的中文词
+        if let a = extractLastChineseWord(beforePart) { keywords.append(a) }
+
+        // 选项 B：取"还是"后第一个 2-4 字的中文词
+        if let b = extractFirstChineseWord(afterPart) { keywords.append(b) }
+
+        return keywords
+    }
+
+    /// 取字符串末尾的最后一个 2-4 字中文词
+    private func extractLastChineseWord(_ text: String) -> String? {
+        // 只保留中文字符
+        let cn = text.filter { $0 >= "\u{4E00}" && $0 <= "\u{9FFF}" }
+        guard cn.count >= 2 else { return nil }
+        let len = min(cn.count, 2)
+        let start = cn.index(cn.endIndex, offsetBy: -len)
+        return String(cn[start...])
+    }
+
+    /// 取字符串开头的第一个 2-4 字中文词
+    private func extractFirstChineseWord(_ text: String) -> String? {
+        let cn = text.filter { $0 >= "\u{4E00}" && $0 <= "\u{9FFF}" }
+        guard cn.count >= 2 else { return nil }
+        let len = min(cn.count, 4)
+        let end = cn.index(cn.startIndex, offsetBy: len)
+        return String(cn[..<end])
     }
 
     private func buildPendingQuestionHint(from messages: [ChatMessage]) -> String? {
