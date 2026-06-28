@@ -1,20 +1,21 @@
 import SwiftUI
 import UIKit
 
-/// 单条消息气泡。用户右侧绿色、角色左侧白色。
+/// 单条消息气泡。assistant 左侧白底+尖角，user 右侧绿底+尖角。
 struct ChatBubbleView: View {
     let message: ChatMessage
     let availableWidth: CGFloat
     var characterAvatarImage: UIImage? = nil
     var onRestore: ((ChatMessage) -> Void)? = nil
 
-    private let avatarSize: CGFloat = 40
+    private let tailW: CGFloat = ChatUIStyle.bubbleTailWidth
+    private let tailH: CGFloat = ChatUIStyle.bubbleTailHeight
+    private let tailOff: CGFloat = ChatUIStyle.bubbleTailTopOffset
 
     private var bubbleMaxWidth: CGFloat {
-        availableWidth * 0.68
+        availableWidth * ChatUIStyle.bubbleMaxWidthRatio
     }
 
-    /// assistant 空 sending placeholder 不渲染，由顶部 indicator 表达 typing 状态。
     private var isEmptyAssistantPlaceholder: Bool {
         message.role == .assistant &&
         message.status == .sending &&
@@ -25,18 +26,20 @@ struct ChatBubbleView: View {
         if isEmptyAssistantPlaceholder {
             Color.clear.frame(height: 0)
         } else {
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: ChatUIStyle.avatarToBubbleGap) {
                 if message.role == .assistant {
-                    AvatarView(role: .assistant, size: avatarSize, customImage: characterAvatarImage)
+                    avatarView(for: .assistant)
                     bubbleContent
-                    Spacer(minLength: bubbleMaxWidth * 0.1)
+                        .padding(.leading, tailW)
+                    Spacer(minLength: 36)
                 } else {
-                    Spacer(minLength: bubbleMaxWidth * 0.1)
+                    Spacer(minLength: 36)
                     bubbleContent
-                    AvatarView(role: .user, size: avatarSize)
+                        .padding(.trailing, tailW)
+                    avatarView(for: .user)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, ChatUIStyle.pageHorizontalPadding)
         }
     }
 
@@ -45,12 +48,20 @@ struct ChatBubbleView: View {
     private var bubbleContent: some View {
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 2) {
             Text(message.content)
-                .font(.body)
-                .foregroundStyle(.black)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(bubbleColor)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .font(.system(size: ChatUIStyle.bubbleFontSize))
+                .foregroundStyle(ChatUIStyle.bubbleText)
+                .padding(.horizontal, ChatUIStyle.bubbleHorizontalPadding)
+                .padding(.vertical, ChatUIStyle.bubbleVerticalPadding)
+                .background(
+                    ChatBubbleShape(
+                        side: message.role == .assistant ? .left : .right,
+                        cornerRadius: ChatUIStyle.bubbleCornerRadius,
+                        tailWidth: tailW,
+                        tailHeight: tailH,
+                        tailOffset: tailOff
+                    )
+                    .fill(bubbleColor)
+                )
                 .frame(maxWidth: bubbleMaxWidth, alignment: message.role == .user ? .trailing : .leading)
                 .contextMenu {
                     Button {
@@ -73,67 +84,58 @@ struct ChatBubbleView: View {
                     .foregroundStyle(.red)
                     .padding(.leading, 4)
             }
-            if message.status == .sending {
-                Text("...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 4)
-            }
         }
     }
 
     private var bubbleColor: Color {
         switch message.role {
-        case .user:
-            return Color(red: 0.58, green: 0.93, blue: 0.38) // chat green
-        case .assistant:
-            return .white
-        case .system:
-            return Color(.systemGray5)
+        case .user:    return ChatUIStyle.userBubble
+        case .assistant: return ChatUIStyle.assistantBubble
+        case .system:  return Color(.systemGray5)
         }
     }
-}
 
-// MARK: - Avatar
+    // MARK: - Avatar
 
-private struct AvatarView: View {
-    let role: MessageRole
-    let size: CGFloat
-    var customImage: UIImage? = nil
+    private func avatarView(for role: MessageRole) -> some View {
+        let size = ChatUIStyle.avatarSize
+        let cr = ChatUIStyle.avatarCornerRadius
 
-    var body: some View {
-        if let image = customImage, role == .assistant {
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        } else {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(backgroundColor)
+        if let image = characterAvatarImage, role == .assistant {
+            return AnyView(
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
                     .frame(width: size, height: size)
-
-                Image(systemName: iconName)
-                    .font(.system(size: size * 0.5))
-                    .foregroundStyle(.white)
-            }
+                    .clipShape(RoundedRectangle(cornerRadius: cr))
+            )
+        } else {
+            return AnyView(
+                ZStack {
+                    RoundedRectangle(cornerRadius: cr)
+                        .fill(avatarBg(for: role))
+                        .frame(width: size, height: size)
+                    Image(systemName: avatarIcon(for: role))
+                        .font(.system(size: size * 0.5))
+                        .foregroundStyle(.white)
+                }
+            )
         }
     }
 
-    private var backgroundColor: Color {
+    private func avatarBg(for role: MessageRole) -> Color {
         switch role {
-        case .user: return .blue.opacity(0.7)
-        case .assistant: return .orange.opacity(0.7)
-        case .system: return .gray
+        case .user:      return Color(red: 91/255, green: 152/255, blue: 222/255)
+        case .assistant: return Color(red: 240/255, green: 154/255, blue: 84/255).opacity(0.85)
+        case .system:    return .gray
         }
     }
 
-    private var iconName: String {
+    private func avatarIcon(for role: MessageRole) -> String {
         switch role {
-        case .user: return "person.fill"
+        case .user:      return "person.fill"
         case .assistant: return "sparkles"
-        case .system: return "gearshape.fill"
+        case .system:    return "gearshape.fill"
         }
     }
 }

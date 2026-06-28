@@ -60,7 +60,7 @@ struct ChatView: View {
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 4) {
+                        LazyVStack(spacing: ChatUIStyle.rowVerticalSpacing) {
                             ForEach(viewModel.messages) { message in
                                 ChatBubbleView(
                                     message: message,
@@ -73,7 +73,7 @@ struct ChatView: View {
                         }
                         .padding(.vertical, 8)
                     }
-                    .background(chatBackground)
+                    .background(ChatUIStyle.chatBackground)
                     .onChange(of: viewModel.messages.count) { _, _ in
                         if let last = viewModel.messages.last {
                             proxy.scrollTo(last.id, anchor: .bottom)
@@ -136,10 +136,6 @@ struct ChatView: View {
         }
     }
 }
-
-// MARK: - Background
-
-private let chatBackground = Color(red: 0.93, green: 0.93, blue: 0.93)
 
 #Preview {
     ChatView(store: try! FileMessageStore())
