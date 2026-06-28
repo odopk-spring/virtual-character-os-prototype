@@ -36,6 +36,26 @@ struct ChatView: View {
                 .background(.red.opacity(0.85))
             }
 
+            // 顶部"对方输入中"提示
+            if viewModel.isLoading {
+                HStack {
+                    Spacer()
+                    Text("对方输入中")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(Color(.systemGray6))
+                        )
+                    Spacer()
+                }
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .animation(.easeInOut(duration: 0.2), value: viewModel.isLoading)
+            }
+
             // 消息列表
             GeometryReader { geometry in
                 ScrollViewReader { proxy in

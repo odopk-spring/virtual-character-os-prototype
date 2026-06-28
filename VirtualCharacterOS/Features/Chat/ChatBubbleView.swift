@@ -63,8 +63,9 @@ struct ChatBubbleView: View {
                     .padding(.leading, 4)
             }
             if message.status == .sending {
-                ProgressView()
-                    .scaleEffect(0.7)
+                Text("...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .padding(.leading, 4)
             }
         }
