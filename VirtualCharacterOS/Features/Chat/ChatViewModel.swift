@@ -79,6 +79,9 @@ final class ChatViewModel {
             let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 500)
             let response = try await provider.send(request, config: config)
 
+            // 延迟显示回复，模拟真实打字节奏（不阻塞 UI）
+            try await Task.sleep(nanoseconds: typingDelayNanoseconds(for: response.content))
+
             let updated = ChatMessage(
                 id: assistantID, role: .assistant,
                 content: response.content, status: .sent
@@ -103,6 +106,12 @@ final class ChatViewModel {
             messages[idx] = failed
         }
         errorMessage = message
+    }
+
+    /// 根据回复长度计算打字延迟。0.04秒/字，clamp 到 0.6–4.0 秒。
+    private func typingDelayNanoseconds(for text: String) -> UInt64 {
+        let seconds = min(max(Double(text.count) * 0.04, 0.6), 4.0)
+        return UInt64(seconds * 1_000_000_000)
     }
 
     private static func readConfig() -> ProviderConfig {
