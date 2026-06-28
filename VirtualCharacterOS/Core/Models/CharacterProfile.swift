@@ -1,6 +1,6 @@
 import Foundation
 
-/// MVP 0 角色档案。固定单角色，不含编辑器。
+/// 角色档案。单角色，支持编辑。
 struct CharacterProfile: Identifiable, Codable, Equatable {
     var id: UUID
     var name: String
@@ -29,6 +29,16 @@ struct CharacterProfile: Identifiable, Codable, Equatable {
 // MARK: - Default Profile
 
 extension CharacterProfile {
+    /// 应用字段长度限制。name≤20, subtitle≤40, basePersonality≤1000, relationshipContext≤1000。
+    func applyingLengthLimits() -> CharacterProfile {
+        var copy = self
+        copy.name = String(copy.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
+        copy.subtitle = String(copy.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
+        copy.basePersonality = String(copy.basePersonality.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1000))
+        copy.relationshipContext = String(copy.relationshipContext.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1000))
+        return copy
+    }
+
     /// MVP 0 默认角色。不恋爱化、不假装真人、不客服腔。
     static func defaultProfile() -> CharacterProfile {
         CharacterProfile(

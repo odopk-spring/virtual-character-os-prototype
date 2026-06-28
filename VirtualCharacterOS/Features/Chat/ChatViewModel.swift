@@ -8,20 +8,22 @@ final class ChatViewModel {
     var inputText: String = ""
     var isLoading: Bool = false
     var errorMessage: String?
-    let character: CharacterProfile
+    var character: CharacterProfile
 
     private let store: any MessageStore
+    private let profileStore: any CharacterProfileStore
     private let contextBuilder: ContextBuilder
     private let provider: any LLMProvider
 
     init(
         store: any MessageStore,
-        character: CharacterProfile = .defaultProfile(),
+        profileStore: any CharacterProfileStore = try! FileCharacterProfileStore(),
         contextBuilder: ContextBuilder = ContextBuilder(),
         provider: any LLMProvider = OpenAICompatibleProvider()
     ) {
         self.store = store
-        self.character = character
+        self.profileStore = profileStore
+        self.character = Self.readCharacterProfile(store: profileStore)
         self.contextBuilder = contextBuilder
         self.provider = provider
         loadMessages()
@@ -65,6 +67,11 @@ final class ChatViewModel {
     func loadMessages() {
         do { messages = try store.loadMessages() }
         catch { messages = []; errorMessage = "加载消息失败" }
+    }
+
+    /// 重新加载角色档案（从编辑器返回时调用）。
+    func reloadCharacterProfile() {
+        character = Self.readCharacterProfile(store: profileStore)
     }
 
     // MARK: - LLM Call
@@ -216,6 +223,11 @@ final class ChatViewModel {
         let raw = UserDefaults.standard.string(forKey: "CharacterSettings.supplement") ?? ""
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// 读取角色档案。失败回退默认角色。
+    static func readCharacterProfile(store: any CharacterProfileStore) -> CharacterProfile {
+        return (try? store.loadProfile()) ?? CharacterProfile.defaultProfile()
     }
 
     /// 读取手动记忆。读取失败时降级为空数组，不阻断聊天。

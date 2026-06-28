@@ -73,11 +73,13 @@ struct ChatView: View {
         }
         .onAppear {
             viewModel.loadMessages()
+            viewModel.reloadCharacterProfile()
             characterAvatar = AvatarStore.loadImage()
         }
         .onChange(of: showSettings) { _, newValue in
-            // 从设置页返回时刷新头像
+            // 从设置页返回时刷新头像和角色档案
             if !newValue {
+                viewModel.reloadCharacterProfile()
                 characterAvatar = AvatarStore.loadImage()
             }
         }

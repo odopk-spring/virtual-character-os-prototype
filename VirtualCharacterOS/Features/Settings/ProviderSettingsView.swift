@@ -112,6 +112,18 @@ struct ProviderSettingsView: View {
                 Text("角色头像")
             }
 
+            // MARK: - Character Profile
+
+            Section {
+                NavigationLink {
+                    CharacterEditorView(store: try! FileCharacterProfileStore())
+                } label: {
+                    Label("编辑角色档案", systemImage: "person.text.rectangle")
+                }
+            } header: {
+                Text("角色档案")
+            }
+
             // MARK: - Memory
 
             Section {
