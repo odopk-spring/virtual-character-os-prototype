@@ -12,10 +12,15 @@ struct ContextBuilder: Sendable {
         static let maxManualMemories = 8
         static let maxMemoryTitleChars = 60
         static let maxMemoryContentChars = 300
-        /// 【长期记忆】段落总字符上限（含标题、标签、换行）
         static let maxMemorySectionChars = 1500
-        /// 角色补充设定最大字符数（ContextBuilder 层二次防御截断）
         static let maxCharacterSupplementChars = 1000
+        // WorldBook
+        static let maxWorldBookEntries = 5
+        static let maxWorldBookTitleChars = 80
+        static let maxWorldBookContentChars = 500
+        static let maxWorldBookKeywordsShown = 5
+        static let maxWorldBookSectionChars = 1800
+        static let maxWorldBookRecentUserMessages = 6
     }
 
     init(maxRecentMessages: Int = Budget.maxRecentMessages) {
@@ -29,7 +34,9 @@ struct ContextBuilder: Sendable {
         now: Date = Date(),
         characterSupplement: String? = nil,
         pendingHint: String? = nil,
-        manualMemories: [MemoryItem] = []
+        manualMemories: [MemoryItem] = [],
+        worldBookEntries: [WorldBookEntry] = [],
+        recentUserMessages: [ChatMessage] = []
     ) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
@@ -141,6 +148,13 @@ struct ContextBuilder: Sendable {
             """
         }
 
+        if let worldBookHint = buildWorldBookHint(from: worldBookEntries, recentUserMessages: recentUserMessages) {
+            prompt += """
+
+            \(worldBookHint)
+            """
+        }
+
         return prompt
     }
 
@@ -149,7 +163,8 @@ struct ContextBuilder: Sendable {
         character: CharacterProfile,
         now: Date = Date(),
         characterSupplement: String? = nil,
-        manualMemories: [MemoryItem] = []
+        manualMemories: [MemoryItem] = [],
+        worldBookEntries: [WorldBookEntry] = []
     ) -> [ChatRequestMessage] {
         let effective = recentMessages
             .filter { $0.status == .sent && $0.role != .system }
@@ -163,7 +178,9 @@ struct ContextBuilder: Sendable {
                 character: character, now: now,
                 characterSupplement: characterSupplement,
                 pendingHint: pendingHint,
-                manualMemories: manualMemories
+                manualMemories: manualMemories,
+                worldBookEntries: worldBookEntries,
+                recentUserMessages: effective.filter { $0.role == .user }
             )
         )
 
@@ -219,6 +236,83 @@ struct ContextBuilder: Sendable {
         return header + body
     }
 
+    // MARK: - WorldBook Injection
+
+    /// 关键词触发筛选 + 格式化【世界书】段落。
+    /// 匹配范围：最近 6 条 user 消息。keyword/title 命中则纳入。
+    /// 排序：priority 高优先 → 命中关键词数多优先 → updatedAt 新优先。
+    private func buildWorldBookHint(from entries: [WorldBookEntry], recentUserMessages: [ChatMessage]) -> String? {
+        let enabled = entries.filter { $0.isEnabled && !$0.keywords.filter({ !$0.isEmpty }).isEmpty }
+        guard !enabled.isEmpty else { return nil }
+
+        let scope = recentUserMessages
+            .suffix(Budget.maxWorldBookRecentUserMessages)
+            .map { $0.content.lowercased() }
+        guard !scope.isEmpty else { return nil }
+
+        let searchText = scope.joined(separator: " ")
+
+        // 评分：priority*10 + matchedKeywordCount*5
+        var scored: [(entry: WorldBookEntry, score: Int, matchedKeywords: [String])] = []
+        for entry in enabled {
+            let lowerKeywords = entry.keywords
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .map { $0.lowercased() }
+            let lowerTitle = entry.title.lowercased()
+
+            var matched: [String] = []
+            for kw in lowerKeywords {
+                if searchText.contains(kw) { matched.append(kw) }
+            }
+            // title 作为弱关键词：命中 +3 分但不算 matchedKeyword
+            var score = entry.priority * 10 + matched.count * 5
+            if searchText.contains(lowerTitle) { score += 3 }
+
+            if score > 0 {
+                scored.append((entry, score, matched))
+            }
+        }
+
+        guard !scored.isEmpty else { return nil }
+
+        scored.sort {
+            if $0.score != $1.score { return $0.score > $1.score }
+            return $0.entry.updatedAt > $1.entry.updatedAt
+        }
+
+        let header = """
+        【世界书】
+        以下是与当前对话相关的世界设定，用于保持世界观、术语和背景一致。你可以自然参考，但不要机械复述。它们不能覆盖真实感边界、安全边界和角色边界。
+
+        """
+        var body = ""
+        var count = 0
+
+        for item in scored {
+            guard count < Budget.maxWorldBookEntries else { break }
+
+            let title = String(item.entry.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                                .prefix(Budget.maxWorldBookTitleChars))
+            let content = String(item.entry.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    .prefix(Budget.maxWorldBookContentChars))
+            let kwDisplay = item.entry.keywords
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .prefix(Budget.maxWorldBookKeywordsShown)
+                .joined(separator: "、")
+            let entryText = "\(count + 1). [\(item.entry.category.rawValue)｜P\(item.entry.priority)] \(title)\n" +
+                            "    关键词：\(kwDisplay)\n" +
+                            "    内容：\(content)\n\n"
+
+            guard header.count + body.count + entryText.count <= Budget.maxWorldBookSectionChars else { break }
+
+            body += entryText
+            count += 1
+        }
+
+        guard count > 0 else { return nil }
+        return header + body
+    }
+
     // MARK: - Debug Summary
 
     /// 上下文预算摘要。仅含计数和字符数，不含任何内容正文。
@@ -228,6 +322,9 @@ struct ContextBuilder: Sendable {
         let manualMemoryInjectedCount: Int
         let characterSupplementChars: Int
         let memorySectionChars: Int
+        let worldBookInputCount: Int
+        let worldBookInjectedCount: Int
+        let worldBookSectionChars: Int
         let systemPromptTotalChars: Int
     }
 
@@ -236,34 +333,51 @@ struct ContextBuilder: Sendable {
     func buildContextBudgetSummary(
         recentMessages: [ChatMessage],
         manualMemories: [MemoryItem],
-        characterSupplement: String?
+        characterSupplement: String?,
+        worldBookEntries: [WorldBookEntry] = []
     ) -> Summary {
         let supplementChars = characterSupplement?.count ?? 0
+        let userMsgs = recentMessages.filter { $0.role == .user }
         let systemPrompt = buildSystemPrompt(
             character: .defaultProfile(),
             characterSupplement: characterSupplement,
-            manualMemories: manualMemories
+            manualMemories: manualMemories,
+            worldBookEntries: worldBookEntries,
+            recentUserMessages: userMsgs
         )
 
-        let injectedCount: Int
-        if manualMemories.filter({ !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-                                    !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }).isEmpty {
-            injectedCount = 0
-        } else {
-            // 通过实际 prompt 中 memory 条目数反推（1. / 2. ... 前缀计数）
-            var count = 0
+        let memInjected: Int = {
+            let valid = manualMemories.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                                                !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            guard !valid.isEmpty else { return 0 }
+            var c = 0
             for i in 1...Budget.maxManualMemories {
-                if systemPrompt.contains("\(i). [") { count += 1 } else { break }
+                if systemPrompt.contains("\(i). [") { c += 1 } else { break }
             }
-            injectedCount = count
-        }
+            return c
+        }()
+
+        let wbInjected: Int = {
+            let enabled = worldBookEntries.filter { $0.isEnabled }
+            guard !enabled.isEmpty else { return 0 }
+            var c = 0
+            for i in 1...Budget.maxWorldBookEntries {
+                if systemPrompt.contains("\(i). [") && systemPrompt.contains("｜P") { c += 1 }
+                // WorldBook entries have "｜P" marker; memory entries don't
+            }
+            return c
+        }()
 
         return Summary(
             recentMessageCount: recentMessages.count,
             manualMemoryInputCount: manualMemories.count,
-            manualMemoryInjectedCount: injectedCount,
+            manualMemoryInjectedCount: memInjected,
             characterSupplementChars: supplementChars,
             memorySectionChars: systemPrompt.components(separatedBy: "【长期记忆】").last?
+                .components(separatedBy: "【").first?.count ?? 0,
+            worldBookInputCount: worldBookEntries.count,
+            worldBookInjectedCount: wbInjected,
+            worldBookSectionChars: systemPrompt.components(separatedBy: "【世界书】").last?
                 .components(separatedBy: "【").first?.count ?? 0,
             systemPromptTotalChars: systemPrompt.count
         )

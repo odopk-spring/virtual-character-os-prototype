@@ -81,19 +81,22 @@ final class ChatViewModel {
             let allMessages = try store.loadMessages()
             let supplement = Self.readCharacterSupplement()
             let memories = Self.readManualMemories()
+            let worldBook = Self.readWorldBookEntries()
             let requestMessages = contextBuilder.buildRequestMessages(
                 recentMessages: allMessages, character: character,
                 characterSupplement: supplement,
-                manualMemories: memories
+                manualMemories: memories,
+                worldBookEntries: worldBook
             )
 
             #if DEBUG
             let summary = contextBuilder.buildContextBudgetSummary(
                 recentMessages: allMessages,
                 manualMemories: memories,
-                characterSupplement: supplement
+                characterSupplement: supplement,
+                worldBookEntries: worldBook
             )
-            print("[ContextBudget] msgs=\(summary.recentMessageCount) mems=\(summary.manualMemoryInjectedCount)/\(summary.manualMemoryInputCount) sup=\(summary.characterSupplementChars) memChars=\(summary.memorySectionChars) prompt=\(summary.systemPromptTotalChars)")
+            print("[ContextBudget] msgs=\(summary.recentMessageCount) mems=\(summary.manualMemoryInjectedCount)/\(summary.manualMemoryInputCount) wb=\(summary.worldBookInjectedCount)/\(summary.worldBookInputCount) wbChars=\(summary.worldBookSectionChars) sup=\(summary.characterSupplementChars) memChars=\(summary.memorySectionChars) prompt=\(summary.systemPromptTotalChars)")
             #endif
 
             let config = Self.readConfig()
@@ -234,6 +237,12 @@ final class ChatViewModel {
     static func readManualMemories() -> [MemoryItem] {
         guard let store = try? FileMemoryStore() else { return [] }
         return (try? store.loadMemories()) ?? []
+    }
+
+    /// 读取世界书条目。读取失败降级为空数组。
+    static func readWorldBookEntries() -> [WorldBookEntry] {
+        guard let store = try? FileWorldBookStore() else { return [] }
+        return (try? store.loadEntries()) ?? []
     }
 }
 

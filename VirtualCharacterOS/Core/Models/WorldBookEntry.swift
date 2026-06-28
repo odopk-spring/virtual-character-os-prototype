@@ -59,7 +59,7 @@ struct WorldBookEntry: Identifiable, Codable, Equatable {
         self.updatedAt = updatedAt
     }
 
-    /// 应用字段长度限制。
+    /// 应用字段长度限制和 priority 范围限制。
     func applyingLengthLimits() -> WorldBookEntry {
         var copy = self
         copy.title = String(copy.title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
@@ -68,7 +68,8 @@ struct WorldBookEntry: Identifiable, Codable, Equatable {
             .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(30)) }
             .filter { !$0.isEmpty }
             .prefix(20)
-            .map { $0 } // ArraySlice → Array
+            .map { $0 }
+        copy.priority = min(max(copy.priority, -10), 10)
         return copy
     }
 }
