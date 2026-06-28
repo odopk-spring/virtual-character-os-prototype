@@ -15,7 +15,7 @@ final class ChatViewModel {
     private let branchStore: any BranchStore
     private let contextBuilder: ContextBuilder
     private let provider: any LLMProvider
-    private var activeBranchID: UUID
+    private(set) var activeBranchID: UUID
 
     init(
         store: any MessageStore,
@@ -146,6 +146,78 @@ final class ChatViewModel {
 
         // 重新加载可见消息
         loadMessages()
+    }
+
+    // MARK: - Branch Switcher
+
+    /// 所有分支列表。
+    var allBranches: [ConversationBranch] {
+        (try? branchStore.loadBranches()) ?? []
+    }
+
+    /// 被其他分支作为 parentBranchID 引用的分支 ID 集合。
+    var childBranchIDs: Set<UUID> {
+        let branches = allBranches
+        return Set(branches.compactMap { $0.parentBranchID })
+    }
+
+    /// 各分支的可见消息数（近似）。
+    var branchMessageCounts: [UUID: Int] {
+        let branches = allBranches
+        let allMessages = (try? store.loadMessages()) ?? []
+        var counts: [UUID: Int] = [:]
+        for branch in branches {
+            counts[branch.id] = BranchMessageResolver.visibleMessages(
+                activeBranch: branch,
+                allBranches: branches,
+                allMessages: allMessages
+            ).count
+        }
+        return counts
+    }
+
+    /// 切换到指定分支。
+    func switchBranch(to branchID: UUID) {
+        guard branchID != activeBranchID else { return }
+        let now = Date()
+
+        var branches = (try? branchStore.loadBranches()) ?? []
+        // 旧 active → inactive
+        if let oldIdx = branches.firstIndex(where: { $0.id == activeBranchID }) {
+            branches[oldIdx].isActive = false
+            try? branchStore.updateBranch(branches[oldIdx])
+        }
+        // 新 → active + touch
+        if let newIdx = branches.firstIndex(where: { $0.id == branchID }) {
+            branches[newIdx].isActive = true
+            branches[newIdx].lastActivatedAt = now
+            try? branchStore.updateBranch(branches[newIdx])
+        }
+        activeBranchID = branchID
+        ActiveBranchStore.setActiveBranchID(branchID)
+        loadMessages()
+    }
+
+    /// 重命名分支。
+    func renameBranch(id: UUID, title: String) {
+        let trimmed = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
+        guard !trimmed.isEmpty else { return }
+        var branches = (try? branchStore.loadBranches()) ?? []
+        if let idx = branches.firstIndex(where: { $0.id == id }) {
+            branches[idx].title = trimmed
+            branches[idx].updatedAt = Date()
+            try? branchStore.updateBranch(branches[idx])
+        }
+    }
+
+    /// 删除分支（不删 messages.json 消息）。
+    func deleteBranch(id: UUID) {
+        // 不删 active branch / main branch
+        guard id != activeBranchID else { return }
+        guard id != ConversationBranch.mainBranchID else { return }
+        // 不删被引用的 parent branch
+        guard !childBranchIDs.contains(id) else { return }
+        try? branchStore.deleteBranch(id: id)
     }
 
     // MARK: - LLM Call

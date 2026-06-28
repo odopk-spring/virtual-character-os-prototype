@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatView: View {
     @State private var viewModel: ChatViewModel
     @State private var showSettings: Bool = false
+    @State private var showBranchSwitcher: Bool = false
     @State private var characterAvatar: UIImage?
     @State private var restoreTargetMessage: ChatMessage?
 
@@ -15,10 +16,10 @@ struct ChatView: View {
             // 顶部导航栏
             ChatTopBar(
                 characterName: viewModel.character.name,
-                subtitle: viewModel.character.subtitle
-            ) {
-                showSettings = true
-            }
+                subtitle: viewModel.character.subtitle,
+                onSettingsTap: { showSettings = true },
+                onBranchTap: { showBranchSwitcher = true }
+            )
 
             // 错误横幅
             if let error = viewModel.errorMessage {
@@ -71,6 +72,19 @@ struct ChatView: View {
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 ProviderSettingsView()
+            }
+        }
+        .sheet(isPresented: $showBranchSwitcher) {
+            NavigationStack {
+                BranchSwitcherView(
+                    allBranches: viewModel.allBranches,
+                    activeBranchID: viewModel.activeBranchID,
+                    childBranchIDs: viewModel.childBranchIDs,
+                    messageCounts: viewModel.branchMessageCounts,
+                    onSwitch: { viewModel.switchBranch(to: $0) },
+                    onRename: { viewModel.renameBranch(id: $0, title: $1) },
+                    onDelete: { viewModel.deleteBranch(id: $0) }
+                )
             }
         }
         .onAppear {

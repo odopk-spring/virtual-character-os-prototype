@@ -5,12 +5,22 @@ struct ChatTopBar: View {
     let characterName: String
     let subtitle: String
     let onSettingsTap: () -> Void
+    let onBranchTap: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
-            // 左侧占位（未来可放返回按钮）
-            Color.clear
-                .frame(width: 36, height: 36)
+            // 左侧：分支切换入口
+            if let onBranchTap {
+                Button(action: onBranchTap) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .frame(width: 36, height: 36)
+                }
+            } else {
+                Color.clear
+                    .frame(width: 36, height: 36)
+            }
 
             Spacer()
 

@@ -20,6 +20,7 @@
 		4EBF21AC0F7024A50C77622F /* MemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8BDD8519B4A4CAA4E5E6CA /* MemoryStore.swift */; };
 		4F9F132F8EBC4C30FDC49EEA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87774F3A1E4D4891F3AA6A1 /* ContentView.swift */; };
 		58AD37420B42128EE9AA56EE /* ProviderConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22ACA07F98D2734326F056ED /* ProviderConfig.swift */; };
+		66A210DED12FB2638DC88E47 /* BranchSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8437DD99399E35FCA6176BB6 /* BranchSwitcherView.swift */; };
 		66D913259F32F86A2E8C40DB /* MessageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F005323220FDCCFD6939B4B1 /* MessageStore.swift */; };
 		686538441152182973032F3E /* ChatTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5550BDDDD50AF571D4CDA2CC /* ChatTopBar.swift */; };
 		69F40B00EBA44BCFB20FC51D /* MemoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1808DA171CEB14756C449FAA /* MemoryListView.swift */; };
@@ -69,6 +70,7 @@
 		73B10BD8A30440860DD85C2A /* MemoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModel.swift; sourceTree = "<group>"; };
 		76CD5308F3EAF6E6FC91823D /* WorldBookViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookViewModel.swift; sourceTree = "<group>"; };
 		779EA4D49B3AD9751245334D /* VirtualCharacterOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VirtualCharacterOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8437DD99399E35FCA6176BB6 /* BranchSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchSwitcherView.swift; sourceTree = "<group>"; };
 		8CA7FA6C3FE29788E6F219A9 /* VirtualCharacterOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualCharacterOSApp.swift; sourceTree = "<group>"; };
 		91D15045872B7FAB31A275DD /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
 		926F8D7D47802D78F5AB06AA /* BranchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchStore.swift; sourceTree = "<group>"; };
@@ -143,6 +145,14 @@
 			path = Core;
 			sourceTree = "<group>";
 		};
+		251E7B4155C2F9CCEDC344C0 /* Branches */ = {
+			isa = PBXGroup;
+			children = (
+				8437DD99399E35FCA6176BB6 /* BranchSwitcherView.swift */,
+			);
+			path = Branches;
+			sourceTree = "<group>";
+		};
 		324346E493F6F30021ABBF85 /* WorldBook */ = {
 			isa = PBXGroup;
 			children = (
@@ -199,6 +209,7 @@
 		AEAA6BC8C3AFE85F40348E88 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				251E7B4155C2F9CCEDC344C0 /* Branches */,
 				AD783B02A2D3FCE7D97977DA /* Chat */,
 				7A23015AC039158A117CB33E /* Memory */,
 				AC2A3A3ABDDDB4652230D3C7 /* Settings */,
@@ -331,6 +342,7 @@
 				91533175824FA335299013EB /* BranchMessageResolver.swift in Sources */,
 				F5F17A63E7381CA60F26FF59 /* BranchMigration.swift in Sources */,
 				3AADBBDCD88658FF32A97218 /* BranchStore.swift in Sources */,
+				66A210DED12FB2638DC88E47 /* BranchSwitcherView.swift in Sources */,
 				A4FF66CE79EA83777B37C7FE /* CharacterEditorView.swift in Sources */,
 				97DE41C23539AA5CF1466D47 /* CharacterProfile.swift in Sources */,
 				4591B0C3CE73786EDB51700F /* CharacterProfileStore.swift in Sources */,
