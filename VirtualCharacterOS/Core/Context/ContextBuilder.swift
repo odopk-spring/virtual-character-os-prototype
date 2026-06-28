@@ -236,6 +236,56 @@ struct ContextBuilder: Sendable {
         return header + body
     }
 
+    // MARK: - WorldBook Match Helpers
+
+    /// 判断字符串是否主要为 Latin 字符（英文、数字、常见符号）。
+    /// 不含 CJK 字符的视为 Latin-like。
+    private func isLatinLike(_ text: String) -> Bool {
+        !text.contains(where: { $0 >= "\u{4E00}" && $0 <= "\u{9FFF}" })
+    }
+
+    /// 将字符串按非字母数字切分为 lowercase token 数组。
+    private func tokenizeForMatch(_ text: String) -> [String] {
+        let lower = text.lowercased()
+        let allowed = CharacterSet.alphanumerics
+        return lower
+            .components(separatedBy: allowed.inverted)
+            .filter { !$0.isEmpty }
+    }
+
+    /// 检查 termTokens 是否作为连续 token 序列出现在 textTokens 中。
+    private func latinTokenSequenceMatch(termTokens: [String], textTokens: [String]) -> Bool {
+        guard !termTokens.isEmpty, termTokens.count <= textTokens.count else { return false }
+        for i in 0...(textTokens.count - termTokens.count) {
+            var match = true
+            for j in 0..<termTokens.count {
+                if textTokens[i + j] != termTokens[j] { match = false; break }
+            }
+            if match { return true }
+        }
+        return false
+    }
+
+    /// 关键词/title 匹配统一入口。
+    /// - Latin-like term → token boundary 连续序列匹配
+    /// - 中文 term → lowercased contains
+    /// - 纯 Latin 且 < 2 字符 → 跳过
+    private func termMatchesInText(term: String, textTokens: [String], rawText: String) -> Bool {
+        let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        if isLatinLike(trimmed) {
+            let termTokens = tokenizeForMatch(trimmed)
+            guard termTokens.count >= 1 else { return false }
+            // 单 token 太短（如 "a", "i"）跳过
+            if termTokens.count == 1 && termTokens[0].count < 2 { return false }
+            return latinTokenSequenceMatch(termTokens: termTokens, textTokens: textTokens)
+        } else {
+            // 中文或混合：contains
+            return rawText.lowercased().contains(trimmed.lowercased())
+        }
+    }
+
     // MARK: - WorldBook Injection
 
     /// 关键词触发筛选 + 格式化【世界书】段落。
@@ -247,26 +297,29 @@ struct ContextBuilder: Sendable {
 
         let scope = recentUserMessages
             .suffix(Budget.maxWorldBookRecentUserMessages)
-            .map { $0.content.lowercased() }
+            .map { $0.content }
         guard !scope.isEmpty else { return nil }
 
         let searchText = scope.joined(separator: " ")
+        let textTokens = tokenizeForMatch(searchText)
 
         // 评分：priority*10 + matchedKeywordCount*5
         var scored: [(entry: WorldBookEntry, score: Int, matchedKeywords: [String])] = []
         for entry in enabled {
-            let lowerKeywords = entry.keywords
+            let keywords = entry.keywords
                 .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                .map { $0.lowercased() }
-            let lowerTitle = entry.title.lowercased()
 
             var matched: [String] = []
-            for kw in lowerKeywords {
-                if searchText.contains(kw) { matched.append(kw) }
+            for kw in keywords {
+                if termMatchesInText(term: kw, textTokens: textTokens, rawText: searchText) {
+                    matched.append(kw)
+                }
             }
-            // title 作为弱关键词：命中 +3 分但不算 matchedKeyword
             var score = entry.priority * 10 + matched.count * 5
-            if searchText.contains(lowerTitle) { score += 3 }
+            // title 作为弱关键词
+            if termMatchesInText(term: entry.title, textTokens: textTokens, rawText: searchText) {
+                score += 3
+            }
 
             if score > 0 {
                 scored.append((entry, score, matched))
