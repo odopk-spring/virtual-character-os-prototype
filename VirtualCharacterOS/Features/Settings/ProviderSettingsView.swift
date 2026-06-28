@@ -112,6 +112,18 @@ struct ProviderSettingsView: View {
                 Text("角色头像")
             }
 
+            // MARK: - Memory
+
+            Section {
+                NavigationLink {
+                    MemoryListView()
+                } label: {
+                    Label("记忆管理", systemImage: "brain.head.profile")
+                }
+            } header: {
+                Text("角色记忆")
+            }
+
             // MARK: - Actions
 
             Section {
