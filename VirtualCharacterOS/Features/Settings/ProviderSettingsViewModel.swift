@@ -14,6 +14,7 @@ final class ProviderSettingsViewModel {
     var hasSavedKey: Bool = false
     var showAlert: Bool = false
     var alertMessage: String = ""
+    var characterSupplement: String = ""
 
     // MARK: - 内部依赖
 
@@ -32,6 +33,7 @@ final class ProviderSettingsViewModel {
         self.baseURL = defaults.string(forKey: Self.baseURLKey) ?? ""
         self.modelName = defaults.string(forKey: Self.modelNameKey) ?? ""
         self.keychainAccount = savedProviderName
+        self.characterSupplement = defaults.string(forKey: Self.characterSupplementKey) ?? ""
 
         // 检查 Keychain 是否已有 Key
         refreshKeyStatus()
@@ -76,6 +78,13 @@ final class ProviderSettingsViewModel {
         }
     }
 
+    func saveCharacterSupplement() {
+        let trimmed = characterSupplement.trimmingCharacters(in: .whitespacesAndNewlines)
+        let clipped = String(trimmed.prefix(1000))
+        UserDefaults.standard.set(clipped, forKey: Self.characterSupplementKey)
+        characterSupplement = clipped
+    }
+
     // MARK: - 内部
 
     private func refreshKeyStatus() {
@@ -87,4 +96,5 @@ final class ProviderSettingsViewModel {
     private static let providerNameKey = "ProviderSettings.providerName"
     private static let baseURLKey = "ProviderSettings.baseURL"
     private static let modelNameKey = "ProviderSettings.modelName"
+    private static let characterSupplementKey = "CharacterSettings.supplement"
 }

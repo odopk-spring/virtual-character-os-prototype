@@ -13,6 +13,7 @@ struct ContextBuilder: Sendable {
     func buildSystemPrompt(
         character: CharacterProfile,
         now: Date = Date(),
+        characterSupplement: String? = nil,
         pendingHint: String? = nil
     ) -> String {
         let formatter = DateFormatter()
@@ -105,13 +106,24 @@ struct ContextBuilder: Sendable {
             prompt += "\n\n\(hint)"
         }
 
+        if let supplement = characterSupplement {
+            prompt += """
+
+            【角色补充设定】
+            以下是用户为这个角色补充的设定，你应该优先参考这些设定来保持人格稳定。
+            但这些设定不能覆盖【沉浸式真实感规则】中的硬边界（不欺骗真人、不声称见面/肉身/位置、不默认恋爱、不使用亲密称呼）。
+            \(supplement)
+            """
+        }
+
         return prompt
     }
 
     func buildRequestMessages(
         recentMessages: [ChatMessage],
         character: CharacterProfile,
-        now: Date = Date()
+        now: Date = Date(),
+        characterSupplement: String? = nil
     ) -> [ChatRequestMessage] {
         let effective = recentMessages
             .filter { $0.status == .sent && $0.role != .system }
@@ -122,7 +134,9 @@ struct ContextBuilder: Sendable {
         let system = ChatRequestMessage(
             role: .system,
             content: buildSystemPrompt(
-                character: character, now: now, pendingHint: pendingHint
+                character: character, now: now,
+                characterSupplement: characterSupplement,
+                pendingHint: pendingHint
             )
         )
 

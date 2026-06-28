@@ -72,8 +72,10 @@ final class ChatViewModel {
     private func callLLM(assistantID: UUID) async {
         do {
             let allMessages = try store.loadMessages()
+            let supplement = Self.readCharacterSupplement()
             let requestMessages = contextBuilder.buildRequestMessages(
-                recentMessages: allMessages, character: character
+                recentMessages: allMessages, character: character,
+                characterSupplement: supplement
             )
             let config = Self.readConfig()
             let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 500)
@@ -195,6 +197,13 @@ final class ChatViewModel {
             providerName: d.string(forKey: "ProviderSettings.providerName") ?? "OpenAI-compatible",
             apiKeyStoredInKeychain: false
         )
+    }
+
+    /// 读取用户补充的角色设定。为空时返回 nil。
+    static func readCharacterSupplement() -> String? {
+        let raw = UserDefaults.standard.string(forKey: "CharacterSettings.supplement") ?? ""
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

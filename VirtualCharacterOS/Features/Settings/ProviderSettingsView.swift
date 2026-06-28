@@ -40,6 +40,38 @@ struct ProviderSettingsView: View {
                 }
             }
 
+            // MARK: - Character Supplement
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("可补充说话风格、近期状态、关系边界、禁忌话术等。不要填写 API Key 或隐私敏感信息。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $viewModel.characterSupplement)
+                        .frame(minHeight: 120)
+                        .font(.body)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
+
+                    HStack {
+                        Text("\(viewModel.characterSupplement.count)/1000")
+                            .font(.caption)
+                            .foregroundStyle(viewModel.characterSupplement.count > 1000 ? .red : .secondary)
+                        Spacer()
+                        Button("保存设定") {
+                            viewModel.saveCharacterSupplement()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                }
+            } header: {
+                Text("角色补充设定")
+            }
+
             // MARK: - Actions
 
             Section {
