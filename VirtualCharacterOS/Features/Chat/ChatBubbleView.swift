@@ -14,19 +14,30 @@ struct ChatBubbleView: View {
         availableWidth * 0.68
     }
 
+    /// assistant 空 sending placeholder 不渲染，由顶部 indicator 表达 typing 状态。
+    private var isEmptyAssistantPlaceholder: Bool {
+        message.role == .assistant &&
+        message.status == .sending &&
+        message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            if message.role == .assistant {
-                AvatarView(role: .assistant, size: avatarSize, customImage: characterAvatarImage)
-                bubbleContent
-                Spacer(minLength: bubbleMaxWidth * 0.1)
-            } else {
-                Spacer(minLength: bubbleMaxWidth * 0.1)
-                bubbleContent
-                AvatarView(role: .user, size: avatarSize)
+        if isEmptyAssistantPlaceholder {
+            Color.clear.frame(height: 0)
+        } else {
+            HStack(alignment: .top, spacing: 8) {
+                if message.role == .assistant {
+                    AvatarView(role: .assistant, size: avatarSize, customImage: characterAvatarImage)
+                    bubbleContent
+                    Spacer(minLength: bubbleMaxWidth * 0.1)
+                } else {
+                    Spacer(minLength: bubbleMaxWidth * 0.1)
+                    bubbleContent
+                    AvatarView(role: .user, size: avatarSize)
+                }
             }
+            .padding(.horizontal, 12)
         }
-        .padding(.horizontal, 12)
     }
 
     // MARK: - Bubble
