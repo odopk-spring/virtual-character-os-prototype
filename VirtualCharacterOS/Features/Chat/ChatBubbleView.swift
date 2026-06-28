@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 单条消息气泡。用户右侧绿色、角色左侧白色。
 struct ChatBubbleView: View {
@@ -38,6 +39,13 @@ struct ChatBubbleView: View {
                 .background(bubbleColor)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .frame(maxWidth: bubbleMaxWidth, alignment: message.role == .user ? .trailing : .leading)
+                .contextMenu {
+                    Button {
+                        UIPasteboard.general.string = message.content
+                    } label: {
+                        Label("复制", systemImage: "doc.on.doc")
+                    }
+                }
 
             if message.status == .failed {
                 Text(message.errorMessage ?? "发送失败")
