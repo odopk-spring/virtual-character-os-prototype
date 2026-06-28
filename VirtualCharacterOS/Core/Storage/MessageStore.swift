@@ -6,6 +6,8 @@ protocol MessageStore: Sendable {
     func saveMessage(_ message: ChatMessage) throws
     func updateMessage(_ message: ChatMessage) throws
     func clearMessages() throws
+    /// 全量替换消息（迁移专用）。
+    func replaceAllMessages(_ messages: [ChatMessage]) throws
 }
 
 /// JSON 文件实现。零第三方依赖，数据仅存 App sandbox，不进 iCloud。
@@ -61,6 +63,10 @@ final class FileMessageStore: MessageStore {
 
     func clearMessages() throws {
         try writeAtomic([])
+    }
+
+    func replaceAllMessages(_ messages: [ChatMessage]) throws {
+        try writeAtomic(messages)
     }
 
     // MARK: - Private
