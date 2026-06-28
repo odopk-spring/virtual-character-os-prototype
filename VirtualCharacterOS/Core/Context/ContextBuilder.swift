@@ -1,7 +1,6 @@
 import Foundation
 
-/// MVP 0 最小 Context Builder。
-/// 组装 system prompt + 最近消息为 LLM 请求结构。
+/// MVP 1 Context Builder — 含 Reply Style + Pending Question Tracking。
 struct ContextBuilder: Sendable {
     let maxRecentMessages: Int
 
@@ -11,17 +10,17 @@ struct ContextBuilder: Sendable {
 
     // MARK: - Public API
 
-    /// 构建 system prompt。包含角色档案、时间、用户画像摘要、真实感规则。
     func buildSystemPrompt(
         character: CharacterProfile,
-        now: Date = Date()
+        now: Date = Date(),
+        pendingHint: String? = nil
     ) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "yyyy年M月d日 EEEE HH:mm"
         let timeString = formatter.string(from: now)
 
-        return """
+        var prompt = """
         你正在扮演一个虚拟人物，而不是通用 AI 助手。
 
         【角色档案】
@@ -71,33 +70,93 @@ struct ContextBuilder: Sendable {
         - 不要默认恋爱化。
         - 直接说话，你就是\(character.name)。
         """
+
+        if let hint = pendingHint {
+            prompt += "\n\n\(hint)"
+        }
+
+        return prompt
     }
 
-    /// 构建请求消息数组。第一条为 system，后续为最近有效 sent 消息。
     func buildRequestMessages(
         recentMessages: [ChatMessage],
         character: CharacterProfile,
         now: Date = Date()
     ) -> [ChatRequestMessage] {
+        let effective = recentMessages
+            .filter { $0.status == .sent && $0.role != .system }
+            .suffix(maxRecentMessages)
+
+        let pendingHint = buildPendingQuestionHint(from: Array(effective))
+
         let system = ChatRequestMessage(
             role: .system,
-            content: buildSystemPrompt(character: character, now: now)
+            content: buildSystemPrompt(
+                character: character, now: now, pendingHint: pendingHint
+            )
         )
 
-        let contextMessages = recentMessages
-            .filter { message in
-                // 仅 sent 状态的消息进入上下文
-                message.status == .sent
-            }
-            .filter { message in
-                // system 消息不重复进入上下文
-                message.role != .system
-            }
-            .suffix(maxRecentMessages)
-            .map { message in
-                ChatRequestMessage(role: message.role, content: message.content)
-            }
+        let contextMessages = effective.map { message in
+            ChatRequestMessage(role: message.role, content: message.content)
+        }
 
         return [system] + contextMessages
+    }
+
+    // MARK: - Pending Question Tracking
+
+    private func extractLatestAssistantQuestion(from messages: [ChatMessage]) -> String? {
+        guard let lastAssistant = messages.last(where: { $0.role == .assistant }) else {
+            return nil
+        }
+        let text = lastAssistant.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard looksLikeQuestion(text) else { return nil }
+        if text.count > 120 {
+            return String(text.prefix(120)) + "…"
+        }
+        return text
+    }
+
+    private func looksLikeQuestion(_ text: String) -> Bool {
+        if text.contains("？") || text.contains("?") { return true }
+        let markers = ["吗", "呢", "要不要", "你觉得", "你想",
+                       "你现在", "哪个", "什么", "怎么", "是不是", "能不能"]
+        return markers.contains(where: { text.contains($0) })
+    }
+
+    private func userLikelyAnswered(question: String, userText: String) -> Bool {
+        let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count <= 3 { return false }
+        let deflectMarkers = ["先不说", "先不管", "后面再", "换个话题", "先别管", "再说"]
+        if deflectMarkers.contains(where: { trimmed.contains($0) }) { return false }
+        return true
+    }
+
+    private func buildPendingQuestionHint(from messages: [ChatMessage]) -> String? {
+        guard messages.count >= 2 else { return nil }
+        guard let question = extractLatestAssistantQuestion(from: messages) else {
+            return nil
+        }
+        var foundAssistant = false
+        var userMsgAfter: ChatMessage?
+        for msg in messages.reversed() {
+            if msg.role == .assistant && !foundAssistant {
+                foundAssistant = true
+                continue
+            }
+            if foundAssistant && msg.role == .user {
+                userMsgAfter = msg
+                break
+            }
+        }
+        guard let userMsg = userMsgAfter else { return nil }
+        if userLikelyAnswered(question: question, userText: userMsg.content) {
+            return nil
+        }
+        return """
+        【未回答问题提示】
+        你之前问过对方："\(question)"
+        对方刚才没有正面回答。你可以在合适时自然带回这个问题，但不要逼问，也不要每轮重复追问。
+        """
     }
 }
