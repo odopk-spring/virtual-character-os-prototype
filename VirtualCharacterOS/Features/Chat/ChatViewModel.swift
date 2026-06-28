@@ -76,7 +76,7 @@ final class ChatViewModel {
                 recentMessages: allMessages, character: character
             )
             let config = Self.readConfig()
-            let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 800)
+            let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 500)
             let response = try await provider.send(request, config: config)
 
             let updated = ChatMessage(
