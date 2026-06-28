@@ -42,9 +42,16 @@ final class ChatViewModel {
         inputText = ""
 
         let assistantID = UUID()
-        messages.append(ChatMessage(
+        let assistantPlaceholder = ChatMessage(
             id: assistantID, role: .assistant, content: "", status: .sending
-        ))
+        )
+        do {
+            try store.saveMessage(assistantPlaceholder)
+            messages.append(assistantPlaceholder)
+        } catch {
+            errorMessage = "消息保存失败"
+            return
+        }
         isLoading = true
         errorMessage = nil
 
