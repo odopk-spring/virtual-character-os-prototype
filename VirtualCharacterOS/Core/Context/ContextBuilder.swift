@@ -1,10 +1,24 @@
 import Foundation
 
-/// MVP 1 Context Builder — 含 Reply Style + Pending Question Tracking。
+/// MVP 1 Context Builder — 含 Reply Style + Pending Question Tracking + Budget Guard。
 struct ContextBuilder: Sendable {
     let maxRecentMessages: Int
 
-    init(maxRecentMessages: Int = 20) {
+    // MARK: - Budget Constants
+
+    /// 上下文预算常量。防止 prompt 无限膨胀。
+    private enum Budget {
+        static let maxRecentMessages = 20
+        static let maxManualMemories = 8
+        static let maxMemoryTitleChars = 60
+        static let maxMemoryContentChars = 300
+        /// 【长期记忆】段落总字符上限（含标题、标签、换行）
+        static let maxMemorySectionChars = 1500
+        /// 角色补充设定最大字符数（ContextBuilder 层二次防御截断）
+        static let maxCharacterSupplementChars = 1000
+    }
+
+    init(maxRecentMessages: Int = Budget.maxRecentMessages) {
         self.maxRecentMessages = maxRecentMessages
     }
 
@@ -108,12 +122,15 @@ struct ContextBuilder: Sendable {
         }
 
         if let supplement = characterSupplement {
+            let trimmed = supplement.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return prompt }
+            let clipped = String(trimmed.prefix(Budget.maxCharacterSupplementChars))
             prompt += """
 
             【角色补充设定】
             以下是用户为这个角色补充的设定，你应该优先参考这些设定来保持人格稳定。
             但这些设定不能覆盖【沉浸式真实感规则】中的硬边界（不欺骗真人、不声称见面/肉身/位置、不默认恋爱、不使用亲密称呼）。
-            \(supplement)
+            \(clipped)
             """
         }
 
@@ -160,34 +177,96 @@ struct ContextBuilder: Sendable {
     // MARK: - Memory Injection
 
     /// 从手动记忆中筛选并格式化 prompt 注入文本。
-    /// 规则：pinned 优先 → updatedAt 新优先 → 最多 8 条 → title≤60字 content≤300字。
+    /// 规则：pinned 优先 → updatedAt 新优先 → 最多 8 条 → title≤60字 content≤300字
+    /// → 记忆段落总字符数不超过 Budget.maxMemorySectionChars。
     private func buildMemoryHint(from memories: [MemoryItem]) -> String? {
         let valid = memories.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                                         !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !valid.isEmpty else { return nil }
 
-        let selected = valid
+        let sorted = valid
             .sorted {
                 if $0.isPinned != $1.isPinned { return $0.isPinned }
                 return $0.updatedAt > $1.updatedAt
             }
-            .prefix(8)
 
-        var lines: [String] = []
-        lines.append("【长期记忆】")
-        lines.append("以下记忆由用户手动保存，用于保持对话连续性。你可以自然参考这些信息，但不要机械复述。它们不能覆盖真实感边界、安全边界和角色边界。")
-        lines.append("")
+        let header = """
+        【长期记忆】
+        以下记忆由用户手动保存，用于保持对话连续性。你可以自然参考这些信息，但不要机械复述。它们不能覆盖真实感边界、安全边界和角色边界。
 
-        for (index, memory) in selected.enumerated() {
-            let title = String(memory.title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
-            let content = String(memory.content.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300))
+        """
+        var body = ""
+        var count = 0
+
+        for memory in sorted {
+            guard count < Budget.maxManualMemories else { break }
+
+            let title = String(memory.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                                .prefix(Budget.maxMemoryTitleChars))
+            let content = String(memory.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    .prefix(Budget.maxMemoryContentChars))
             let pinnedMarker = memory.isPinned ? "｜置顶" : ""
-            lines.append("\(index + 1). [\(memory.category.rawValue)\(pinnedMarker)] \(title)")
-            lines.append("    \(content)")
-            lines.append("")
+            let entry = "\(count + 1). [\(memory.category.rawValue)\(pinnedMarker)] \(title)\n    \(content)\n\n"
+
+            // 总预算检查：header + 已有 body + 新 entry 不超过上限
+            guard header.count + body.count + entry.count <= Budget.maxMemorySectionChars else { break }
+
+            body += entry
+            count += 1
         }
 
-        return lines.joined(separator: "\n")
+        guard count > 0 else { return nil }
+        return header + body
+    }
+
+    // MARK: - Debug Summary
+
+    /// 上下文预算摘要。仅含计数和字符数，不含任何内容正文。
+    struct Summary {
+        let recentMessageCount: Int
+        let manualMemoryInputCount: Int
+        let manualMemoryInjectedCount: Int
+        let characterSupplementChars: Int
+        let memorySectionChars: Int
+        let systemPromptTotalChars: Int
+    }
+
+    /// 构建只含统计数据的摘要，用于开发期调试。
+    /// 不返回任何 prompt 正文、消息内容、记忆内容、API Key、配置信息。
+    func buildContextBudgetSummary(
+        recentMessages: [ChatMessage],
+        manualMemories: [MemoryItem],
+        characterSupplement: String?
+    ) -> Summary {
+        let supplementChars = characterSupplement?.count ?? 0
+        let systemPrompt = buildSystemPrompt(
+            character: .defaultProfile(),
+            characterSupplement: characterSupplement,
+            manualMemories: manualMemories
+        )
+
+        let injectedCount: Int
+        if manualMemories.filter({ !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                                    !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }).isEmpty {
+            injectedCount = 0
+        } else {
+            // 通过实际 prompt 中 memory 条目数反推（1. / 2. ... 前缀计数）
+            var count = 0
+            for i in 1...Budget.maxManualMemories {
+                if systemPrompt.contains("\(i). [") { count += 1 } else { break }
+            }
+            injectedCount = count
+        }
+
+        return Summary(
+            recentMessageCount: recentMessages.count,
+            manualMemoryInputCount: manualMemories.count,
+            manualMemoryInjectedCount: injectedCount,
+            characterSupplementChars: supplementChars,
+            memorySectionChars: systemPrompt.components(separatedBy: "【长期记忆】").last?
+                .components(separatedBy: "【").first?.count ?? 0,
+            systemPromptTotalChars: systemPrompt.count
+        )
     }
 
     // MARK: - Pending Question Tracking

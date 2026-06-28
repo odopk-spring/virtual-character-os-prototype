@@ -79,6 +79,16 @@ final class ChatViewModel {
                 characterSupplement: supplement,
                 manualMemories: memories
             )
+
+            #if DEBUG
+            let summary = contextBuilder.buildContextBudgetSummary(
+                recentMessages: allMessages,
+                manualMemories: memories,
+                characterSupplement: supplement
+            )
+            print("[ContextBudget] msgs=\(summary.recentMessageCount) mems=\(summary.manualMemoryInjectedCount)/\(summary.manualMemoryInputCount) sup=\(summary.characterSupplementChars) memChars=\(summary.memorySectionChars) prompt=\(summary.systemPromptTotalChars)")
+            #endif
+
             let config = Self.readConfig()
             let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 500)
             let response = try await provider.send(request, config: config)
