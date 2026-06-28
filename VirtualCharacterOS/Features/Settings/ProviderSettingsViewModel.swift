@@ -18,7 +18,7 @@ final class ProviderSettingsViewModel {
     // MARK: - 内部依赖
 
     private let keychain: KeychainStore
-    private let keychainAccount: String
+    private var keychainAccount: String
 
     // MARK: - 初始化
 
@@ -40,6 +40,9 @@ final class ProviderSettingsViewModel {
     // MARK: - 用户操作
 
     func save() {
+        // 0. 同步 Keychain account（用户可能改了 providerName）
+        keychainAccount = providerName
+
         // 1. 保存 Key 到 Keychain
         let trimmedKey = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedKey.isEmpty {

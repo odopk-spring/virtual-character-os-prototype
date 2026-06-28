@@ -325,3 +325,177 @@ TASKS.md 当前任务
 5. 亲自判断所有技术细节（Gate 检查清单已覆盖）
 6. 手动搬运长上下文（长上下文控制规则已覆盖）
 7. 替 AI 编写 Dev Report（REVIEW_GATE 的 Report Add-on 已覆盖）
+
+---
+
+## CODE_REVIEW_APPENDIX_V0
+
+> 所有代码相关任务完成实现后，必须先自行执行本附录审查，再输出 Dev Report。
+> 非代码类纯报告任务可跳过，但仍需执行 Scope / Privacy / Realism Gate。
+
+### 适用范围
+
+所有代码相关任务：
+- Swift 源码修改
+- Xcode 工程配置修改
+- 数据模型修改
+- Provider / Context / Storage / Security 修改
+- UI / ViewModel 修改
+- 错误处理修改
+- 持久化逻辑修改
+- 新增或删除 Swift 文件
+
+### 执行要求
+
+完成实现后 → 先执行本附录 10 项审查 → 再输出 Dev Report。不要只报告 build 成功。
+
+---
+
+### 1. Scope Review
+
+检查本轮是否严格只完成当前 Task。
+
+必须明确列出：
+- 本轮实现了什么
+- 本轮没有实现什么
+- 是否误做了下一阶段功能
+- 是否修改了不该修改的文件
+- 是否修改原 PRD 文档
+- 是否引入新依赖
+
+**如果发现越界，必须回滚越界修改。**
+
+### 2. Architecture Review
+
+检查代码是否符合当前架构分层：
+
+| 层 | 允许 | 禁止 |
+|----|------|------|
+| UI (Features/*/View) | 展示 + 用户交互 | 直接调 URLSession / Keychain |
+| ViewModel | 状态 + 调用链编排 + 错误展示 | 直接调 URLSession |
+| Core/LLM | Provider 抽象 + HTTP | 依赖 SwiftUI |
+| Core/Context | 上下文组装 | 读 UserDefaults / Keychain / 网络 |
+| Core/Security | Keychain 读写 | 依赖 SwiftUI |
+| Core/Storage | 本地消息读写 | 保存 API Key / ProviderConfig |
+| Core/Models | 领域模型 | 业务逻辑 |
+
+**如果跨层依赖，必须说明原因；非必要必须修正。**
+
+### 3. Privacy & Security Review
+
+| # | 检查项 | 验证命令 |
+|---|--------|---------|
+| 1 | API Key 不进 UserDefaults | `grep -RIn "UserDefaults.*key\|AppStorage.*key" --include="*.swift" .` |
+| 2 | API Key 不进 ProviderConfig | 结构体审计 |
+| 3 | API Key 不进 ChatMessage | 结构体审计 |
+| 4 | API Key 不进 system prompt | grep ContextBuilder |
+| 5 | API Key 不进日志/print/debugDescription/错误文案 | `grep -RIn "print\|NSLog\|os_log" --include="*.swift" .` |
+| 6 | Base URL/Model Name 不进 prompt，除非任务明确要求 | grep ContextBuilder |
+| 7 | HTTP 原始错误响应体不直接展示给用户 | ChatViewModel audit |
+| 8 | HTTP 原始错误响应体不写入 ChatMessage | ChatViewModel audit |
+| 9 | prompt/请求体/响应体不完整打印到日志 | grep |
+| 10 | Secret scan 0 匹配 | `grep -RInE "sk-[A-Za-z0-9_-]{20,}" .` |
+
+**发现泄露风险必须修复后重新 build + secret scan。**
+
+### 4. Error Handling Review
+
+- 缺 Provider 配置时有安全提示 ✅/❌
+- 缺 API Key 时有安全提示 ✅/❌
+- 网络失败时有安全提示 ✅/❌
+- 解码失败时有安全提示 ✅/❌
+- Provider HTTP 错误时只显示简短安全文案 ✅/❌
+- 不吞错误导致 UI 卡死 ✅/❌
+- 失败后 loading 状态必须恢复 ✅/❌
+- 失败消息不得永久停留在 sending 状态 ✅/❌
+- 不得因为单条消息失败破坏历史消息加载 ✅/❌
+
+### 5. State & Concurrency Review
+
+- UI 状态更新在 MainActor 上 ✅/❌
+- async 调用前后 loading 状态一致 ✅/❌
+- 防止重复发送或重复触发 ✅/❌
+- 不制造明显 retain cycle ✅/❌
+- 不在后台线程直接修改 Published 状态 ✅/❌
+- 不让失败路径遗漏状态恢复 ✅/❌
+- 严格并发警告必须处理 ✅/❌
+- 不得使用 unchecked Sendable 糊弄并发问题，除非报告必要原因和风险 ✅/❌
+
+### 6. Persistence Review
+
+- MessageStore 不保存 API Key ✅/❌
+- MessageStore 不保存 ProviderConfig ✅/❌
+- MessageStore 不保存 prompt 全文，除非任务明确要求 ✅/❌
+- save/update 不制造重复消息 ✅/❌
+- load 文件不存在安全返回空数组 ✅/❌
+- clear 不删除非消息数据 ✅/❌
+- 写入失败能向 UI 暴露安全错误 ✅/❌
+- 如涉及 Application Support，说明是否需要 isExcludedFromBackup ✅/❌
+
+### 7. Realism & Product Boundary Review
+
+- 不能把角色写成 AI 女友 ✅/❌
+- 不能默认恋爱关系 ✅/❌
+- 不能使用亲密称呼 ✅/❌
+- 不能让角色假装真人 ✅/❌
+- 不能让角色声称真实线下活动/地理位置/真实身体 ✅/❌
+- 不能把 App 写成 ChatGPT 套壳 ✅/❌
+- 默认角色仍应是"虚拟网友 / 项目搭档" ✅/❌
+- 如改 prompt，必须说明是否影响真实感边界 ✅/❌
+
+### 8. Build & Static Check
+
+**必须实际运行：**
+
+```
+xcodegen generate
+xcodebuild
+secret scan (grep sk-)
+git status
+```
+
+**如任务涉及新增文件或重构，还必须：**
+
+```
+grep 检查 API Key / secret / sk- 泄露
+grep 检查 UserDefaults 是否误存 Key
+grep 检查 prompt 是否误包含 baseURL/modelName/apiKey
+grep 检查是否误引入 Memory/WorldBook/RAG/Life Scheduler/主动消息等越界模块
+```
+
+### 9. Diff Review
+
+输出报告前审查 `git diff`，并在 Dev Report 中概括：
+- 每个文件为什么修改
+- 是否存在无关 diff
+- 是否存在自动格式化导致的大面积无关修改
+- 是否存在 xcodeproj 生成变化
+- 是否建议提交这些变化
+
+**如果发现无关 diff，必须回滚。**
+
+### 10. Final Self-verdict
+
+Dev Report 末尾必须给出明确结论：
+
+| Gate | Result |
+|------|--------|
+| Scope Gate | Pass / Fail |
+| Architecture Gate | Pass / Fail |
+| Privacy & Security Gate | Pass / Fail |
+| Error Handling Gate | Pass / Fail |
+| State & Concurrency Gate | Pass / Fail |
+| Persistence Gate | Pass / Fail |
+| Realism Gate | Pass / Fail |
+| Build Gate | Pass / Fail |
+
+**只要任一 Gate 为 Fail，本轮不得声称"完成"，必须说明失败原因和建议修复任务。**
+
+### 禁止事项
+
+- 禁止伪造命令结果
+- 禁止把"应该可以运行"写成 build 通过
+- 禁止没有运行 xcodebuild 就写 BUILD SUCCEEDED
+- 禁止隐藏失败命令
+- 禁止用大段解释掩盖未完成项
+- 禁止自动进入下一任务

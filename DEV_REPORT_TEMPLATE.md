@@ -119,9 +119,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 模板中的以下段落直接对应 REVIEW_GATE.md 的 Review Gate Result：
 
 - **Scope Gate** → `### Scope Gate`
+- **Architecture Gate** → `### Architecture Gate`
 - **Code Gate** → `### Code Gate`
 - **Privacy & Security Gate** → `### Privacy & Security Gate`
+- **Error Handling Gate** → `### Error Handling Gate`
+- **State & Concurrency Gate** → `### State & Concurrency Gate`
+- **Persistence Gate** → `### Persistence Gate`
 - **Realism Gate** → `### Realism Gate`
+- **Build Gate** → `### Build Gate`
 - **Tests / Checks → Actually Run** → `### Checks Actually Run`
 - **Tests / Checks → Not Run** → `### Checks Not Run`
 
@@ -135,7 +140,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - [ ] Behavior 说明了用户可见变化（或明确写了"无"）。
 - [ ] Actually Run 包含具体命令和结果。
 - [ ] Not Run 包含原因说明。
-- [ ] 4 个 Gate 全部填写（包括 N/A 的说明）。
+- [ ] 8 个 Gate 全部填写（包括 N/A 的说明）：Scope / Architecture / Code / Privacy & Security / Error Handling / State & Concurrency / Persistence / Realism / Build。
 - [ ] Risks 不为空（至少写了"无"）。
 - [ ] Out of Scope 说明了明确没有做的相关功能。
 - [ ] Next Suggested Task 给出了具体任务编号。
