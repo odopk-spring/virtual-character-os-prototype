@@ -21,6 +21,7 @@
 		7C5B1F149E728CCF2DAEB4AB /* OpenAIChatDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AEB21192EB9979977E288EC /* OpenAIChatDTO.swift */; };
 		7E4A5E29259E884390E64D66 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC5F850176E4A82544665FA /* ChatMessage.swift */; };
 		7E6F43842B32EB66BA08899B /* ChatResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1565EAB5CD0139EABD68F4A /* ChatResponse.swift */; };
+		9409710EF7B1AE2002562F0C /* AvatarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59B887BDA0B3ABAE9C12359A /* AvatarStore.swift */; };
 		97DE41C23539AA5CF1466D47 /* CharacterProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C108B8B34E93B1EA2CEE2B8 /* CharacterProfile.swift */; };
 		99A11828CA70D4F0B528D45E /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AAF8FF40454E276CCF6864 /* LLMProvider.swift */; };
 		A58E5AB4768296F7766F61E2 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C897ACCB7CA500A2B5EE134B /* ChatView.swift */; };
@@ -42,6 +43,7 @@
 		3CC0182FEC1EC12F548E5401 /* ProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSettingsView.swift; sourceTree = "<group>"; };
 		45435917249B92DE6F42031B /* ChatRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRequest.swift; sourceTree = "<group>"; };
 		5550BDDDD50AF571D4CDA2CC /* ChatTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTopBar.swift; sourceTree = "<group>"; };
+		59B887BDA0B3ABAE9C12359A /* AvatarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarStore.swift; sourceTree = "<group>"; };
 		779EA4D49B3AD9751245334D /* VirtualCharacterOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VirtualCharacterOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CA7FA6C3FE29788E6F219A9 /* VirtualCharacterOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualCharacterOSApp.swift; sourceTree = "<group>"; };
 		91D15045872B7FAB31A275DD /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 		B43347C0D00B627A9B2E9240 /* Storage */ = {
 			isa = PBXGroup;
 			children = (
+				59B887BDA0B3ABAE9C12359A /* AvatarStore.swift */,
 				F005323220FDCCFD6939B4B1 /* MessageStore.swift */,
 			);
 			path = Storage;
@@ -276,6 +279,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				04729AE2E3F85AF142035F49 /* AppError.swift in Sources */,
+				9409710EF7B1AE2002562F0C /* AvatarStore.swift in Sources */,
 				97DE41C23539AA5CF1466D47 /* CharacterProfile.swift in Sources */,
 				BA4B3A80B173A33DF01802C4 /* ChatBubbleView.swift in Sources */,
 				04580F86B76A14E597ABDE20 /* ChatInputBar.swift in Sources */,
