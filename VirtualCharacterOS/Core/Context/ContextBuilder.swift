@@ -14,7 +14,8 @@ struct ContextBuilder: Sendable {
         character: CharacterProfile,
         now: Date = Date(),
         characterSupplement: String? = nil,
-        pendingHint: String? = nil
+        pendingHint: String? = nil,
+        manualMemories: [MemoryItem] = []
     ) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
@@ -116,6 +117,13 @@ struct ContextBuilder: Sendable {
             """
         }
 
+        if let memoryHint = buildMemoryHint(from: manualMemories) {
+            prompt += """
+
+            \(memoryHint)
+            """
+        }
+
         return prompt
     }
 
@@ -123,7 +131,8 @@ struct ContextBuilder: Sendable {
         recentMessages: [ChatMessage],
         character: CharacterProfile,
         now: Date = Date(),
-        characterSupplement: String? = nil
+        characterSupplement: String? = nil,
+        manualMemories: [MemoryItem] = []
     ) -> [ChatRequestMessage] {
         let effective = recentMessages
             .filter { $0.status == .sent && $0.role != .system }
@@ -136,7 +145,8 @@ struct ContextBuilder: Sendable {
             content: buildSystemPrompt(
                 character: character, now: now,
                 characterSupplement: characterSupplement,
-                pendingHint: pendingHint
+                pendingHint: pendingHint,
+                manualMemories: manualMemories
             )
         )
 
@@ -145,6 +155,39 @@ struct ContextBuilder: Sendable {
         }
 
         return [system] + contextMessages
+    }
+
+    // MARK: - Memory Injection
+
+    /// 从手动记忆中筛选并格式化 prompt 注入文本。
+    /// 规则：pinned 优先 → updatedAt 新优先 → 最多 8 条 → title≤60字 content≤300字。
+    private func buildMemoryHint(from memories: [MemoryItem]) -> String? {
+        let valid = memories.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                                        !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !valid.isEmpty else { return nil }
+
+        let selected = valid
+            .sorted {
+                if $0.isPinned != $1.isPinned { return $0.isPinned }
+                return $0.updatedAt > $1.updatedAt
+            }
+            .prefix(8)
+
+        var lines: [String] = []
+        lines.append("【长期记忆】")
+        lines.append("以下记忆由用户手动保存，用于保持对话连续性。你可以自然参考这些信息，但不要机械复述。它们不能覆盖真实感边界、安全边界和角色边界。")
+        lines.append("")
+
+        for (index, memory) in selected.enumerated() {
+            let title = String(memory.title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+            let content = String(memory.content.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300))
+            let pinnedMarker = memory.isPinned ? "｜置顶" : ""
+            lines.append("\(index + 1). [\(memory.category.rawValue)\(pinnedMarker)] \(title)")
+            lines.append("    \(content)")
+            lines.append("")
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Pending Question Tracking

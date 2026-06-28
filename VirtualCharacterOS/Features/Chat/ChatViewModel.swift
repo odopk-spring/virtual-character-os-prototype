@@ -73,9 +73,11 @@ final class ChatViewModel {
         do {
             let allMessages = try store.loadMessages()
             let supplement = Self.readCharacterSupplement()
+            let memories = Self.readManualMemories()
             let requestMessages = contextBuilder.buildRequestMessages(
                 recentMessages: allMessages, character: character,
-                characterSupplement: supplement
+                characterSupplement: supplement,
+                manualMemories: memories
             )
             let config = Self.readConfig()
             let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 500)
@@ -204,6 +206,12 @@ final class ChatViewModel {
         let raw = UserDefaults.standard.string(forKey: "CharacterSettings.supplement") ?? ""
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// 读取手动记忆。读取失败时降级为空数组，不阻断聊天。
+    static func readManualMemories() -> [MemoryItem] {
+        guard let store = try? FileMemoryStore() else { return [] }
+        return (try? store.loadMemories()) ?? []
     }
 }
 
