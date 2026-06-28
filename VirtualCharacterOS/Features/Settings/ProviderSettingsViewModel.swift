@@ -15,6 +15,7 @@ final class ProviderSettingsViewModel {
     var showAlert: Bool = false
     var alertMessage: String = ""
     var characterSupplement: String = ""
+    var avatarImage: UIImage?
 
     // MARK: - 内部依赖
 
@@ -34,6 +35,7 @@ final class ProviderSettingsViewModel {
         self.modelName = defaults.string(forKey: Self.modelNameKey) ?? ""
         self.keychainAccount = savedProviderName
         self.characterSupplement = defaults.string(forKey: Self.characterSupplementKey) ?? ""
+        self.avatarImage = AvatarStore.loadImage()
 
         // 检查 Keychain 是否已有 Key
         refreshKeyStatus()
@@ -85,6 +87,39 @@ final class ProviderSettingsViewModel {
         characterSupplement = clipped
     }
 
+    // MARK: - 角色头像
+
+    var hasCustomAvatar: Bool { avatarImage != nil }
+
+    /// 从 PhotosPicker 的 Data 保存头像。
+    func saveAvatar(from imageData: Data) {
+        guard let image = UIImage(data: imageData),
+              let jpegData = AvatarStore.compressImage(image) else {
+            alertMessage = "无法处理该图片，请重试。"
+            showAlert = true
+            return
+        }
+        do {
+            try AvatarStore.save(jpegData)
+            UserDefaults.standard.set("character-avatar.jpg", forKey: Self.avatarFilenameKey)
+            avatarImage = UIImage(data: jpegData)
+        } catch {
+            alertMessage = "保存头像失败，请重试。"
+            showAlert = true
+        }
+    }
+
+    func deleteAvatar() {
+        do {
+            try AvatarStore.delete()
+            UserDefaults.standard.removeObject(forKey: Self.avatarFilenameKey)
+            avatarImage = nil
+        } catch {
+            alertMessage = "清除头像失败，请重试。"
+            showAlert = true
+        }
+    }
+
     // MARK: - 内部
 
     private func refreshKeyStatus() {
@@ -97,4 +132,5 @@ final class ProviderSettingsViewModel {
     private static let baseURLKey = "ProviderSettings.baseURL"
     private static let modelNameKey = "ProviderSettings.modelName"
     private static let characterSupplementKey = "CharacterSettings.supplement"
+    private static let avatarFilenameKey = "CharacterSettings.avatarFilename"
 }

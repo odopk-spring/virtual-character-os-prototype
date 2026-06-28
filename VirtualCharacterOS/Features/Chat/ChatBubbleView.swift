@@ -5,6 +5,7 @@ import UIKit
 struct ChatBubbleView: View {
     let message: ChatMessage
     let availableWidth: CGFloat
+    var characterAvatarImage: UIImage? = nil
 
     private let avatarSize: CGFloat = 40
 
@@ -15,7 +16,7 @@ struct ChatBubbleView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             if message.role == .assistant {
-                AvatarView(role: .assistant, size: avatarSize)
+                AvatarView(role: .assistant, size: avatarSize, customImage: characterAvatarImage)
                 bubbleContent
                 Spacer(minLength: bubbleMaxWidth * 0.1)
             } else {
@@ -78,16 +79,25 @@ struct ChatBubbleView: View {
 private struct AvatarView: View {
     let role: MessageRole
     let size: CGFloat
+    var customImage: UIImage? = nil
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(backgroundColor)
+        if let image = customImage, role == .assistant {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
                 .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(backgroundColor)
+                    .frame(width: size, height: size)
 
-            Image(systemName: iconName)
-                .font(.system(size: size * 0.5))
-                .foregroundStyle(.white)
+                Image(systemName: iconName)
+                    .font(.system(size: size * 0.5))
+                    .foregroundStyle(.white)
+            }
         }
     }
 

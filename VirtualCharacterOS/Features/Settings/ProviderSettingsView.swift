@@ -1,7 +1,9 @@
 import SwiftUI
+import PhotosUI
 
 struct ProviderSettingsView: View {
     @State private var viewModel = ProviderSettingsViewModel()
+    @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
         Form {
@@ -72,6 +74,44 @@ struct ProviderSettingsView: View {
                 Text("角色补充设定")
             }
 
+            // MARK: - Character Avatar
+
+            Section {
+                HStack {
+                    Spacer()
+                    if let avatar = viewModel.avatarImage {
+                        Image(uiImage: avatar)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 80, height: 80)
+                            .clipShape(Circle())
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.7))
+                                .frame(width: 80, height: 80)
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 32))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    Label("选择头像", systemImage: "photo")
+                }
+
+                if viewModel.hasCustomAvatar {
+                    Button("清除头像", role: .destructive) {
+                        viewModel.deleteAvatar()
+                    }
+                }
+            } header: {
+                Text("角色头像")
+            }
+
             // MARK: - Actions
 
             Section {
@@ -92,6 +132,13 @@ struct ProviderSettingsView: View {
             Button("确定", role: .cancel) {}
         } message: {
             Text(viewModel.alertMessage)
+        }
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            Task {
+                if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                    viewModel.saveAvatar(from: data)
+                }
+            }
         }
     }
 }

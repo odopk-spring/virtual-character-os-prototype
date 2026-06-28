@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatView: View {
     @State private var viewModel: ChatViewModel
     @State private var showSettings: Bool = false
+    @State private var characterAvatar: UIImage?
 
     init(store: any MessageStore) {
         _viewModel = State(initialValue: ChatViewModel(store: store))
@@ -41,7 +42,8 @@ struct ChatView: View {
                             ForEach(viewModel.messages) { message in
                                 ChatBubbleView(
                                     message: message,
-                                    availableWidth: geometry.size.width
+                                    availableWidth: geometry.size.width,
+                                    characterAvatarImage: characterAvatar
                                 )
                                 .id(message.id)
                             }
@@ -71,6 +73,13 @@ struct ChatView: View {
         }
         .onAppear {
             viewModel.loadMessages()
+            characterAvatar = AvatarStore.loadImage()
+        }
+        .onChange(of: showSettings) { _, newValue in
+            // 从设置页返回时刷新头像
+            if !newValue {
+                characterAvatar = AvatarStore.loadImage()
+            }
         }
         .navigationBarHidden(true)
     }
