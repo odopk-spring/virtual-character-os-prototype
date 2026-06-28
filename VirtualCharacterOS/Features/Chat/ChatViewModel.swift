@@ -12,28 +12,47 @@ final class ChatViewModel {
 
     private let store: any MessageStore
     private let profileStore: any CharacterProfileStore
+    private let branchStore: any BranchStore
     private let contextBuilder: ContextBuilder
     private let provider: any LLMProvider
+    private var activeBranchID: UUID
 
     init(
         store: any MessageStore,
         profileStore: any CharacterProfileStore = try! FileCharacterProfileStore(),
+        branchStore: any BranchStore = try! FileBranchStore(),
         contextBuilder: ContextBuilder = ContextBuilder(),
         provider: any LLMProvider = OpenAICompatibleProvider()
     ) {
         self.store = store
         self.profileStore = profileStore
+        self.branchStore = branchStore
         self.character = Self.readCharacterProfile(store: profileStore)
         self.contextBuilder = contextBuilder
         self.provider = provider
+        self.activeBranchID = ActiveBranchStore.getActiveBranchID()
+
+        // 确保迁移完成（幂等）
+        if let msgStore = store as? FileMessageStore,
+           let brStore = branchStore as? FileBranchStore {
+            try? BranchMigration.migrateIfNeeded(
+                messageStore: msgStore,
+                branchStore: brStore
+            )
+        }
+
         loadMessages()
+        touchBranchActivation()
     }
 
     func sendMessage() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isLoading else { return }
 
-        let userMessage = ChatMessage(role: .user, content: trimmed, status: .sent)
+        let userMessage = ChatMessage(
+            role: .user, content: trimmed, status: .sent,
+            branchID: activeBranchID
+        )
         do {
             try store.saveMessage(userMessage)
             messages.append(userMessage)
@@ -45,7 +64,8 @@ final class ChatViewModel {
 
         let assistantID = UUID()
         let assistantPlaceholder = ChatMessage(
-            id: assistantID, role: .assistant, content: "", status: .sending
+            id: assistantID, role: .assistant, content: "", status: .sending,
+            branchID: activeBranchID
         )
         do {
             try store.saveMessage(assistantPlaceholder)
@@ -58,14 +78,14 @@ final class ChatViewModel {
         errorMessage = nil
 
         let capturedID = assistantID
-        // Swift 6: @MainActor 上下文内直接 await，不需要 Task {}
+        let capturedBranchID = activeBranchID
         Task { @MainActor in
-            await callLLM(assistantID: capturedID)
+            await callLLM(assistantID: capturedID, branchID: capturedBranchID)
         }
     }
 
     func loadMessages() {
-        do { messages = try store.loadMessages() }
+        do { messages = try store.loadMessages(for: activeBranchID) }
         catch { messages = []; errorMessage = "加载消息失败" }
     }
 
@@ -76,14 +96,14 @@ final class ChatViewModel {
 
     // MARK: - LLM Call
 
-    private func callLLM(assistantID: UUID) async {
+    private func callLLM(assistantID: UUID, branchID: UUID) async {
         do {
-            let allMessages = try store.loadMessages()
+            let branchMessages = try store.loadMessages(for: branchID)
             let supplement = Self.readCharacterSupplement()
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()
             let requestMessages = contextBuilder.buildRequestMessages(
-                recentMessages: allMessages, character: character,
+                recentMessages: branchMessages, character: character,
                 characterSupplement: supplement,
                 manualMemories: memories,
                 worldBookEntries: worldBook
@@ -91,7 +111,7 @@ final class ChatViewModel {
 
             #if DEBUG
             let summary = contextBuilder.buildContextBudgetSummary(
-                recentMessages: allMessages,
+                recentMessages: branchMessages,
                 manualMemories: memories,
                 characterSupplement: supplement,
                 worldBookEntries: worldBook
@@ -106,46 +126,54 @@ final class ChatViewModel {
             let raw = response.content
             let chunks = splitAssistantReply(raw)
 
-            // 第一条 chunk 复用占位消息
+            // 第一条 chunk 复用占位消息（带 branchID 保护）
             let firstChunk = chunks[0]
             try await Task.sleep(nanoseconds: typingDelayNanoseconds(for: firstChunk))
             var first = ChatMessage(id: assistantID, role: .assistant,
-                                     content: firstChunk, status: .sent)
-            try store.updateMessage(first)
+                                     content: firstChunk, status: .sent,
+                                     branchID: branchID)
+            try store.updateMessage(first, branchID: branchID)
             if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
                 messages[idx] = first
             }
 
-            // 后续 chunk 创建新气泡
+            // 后续 chunk 创建新气泡（带 branchID）
             for i in 1..<chunks.count {
                 let chunk = chunks[i]
                 let bubbleID = UUID()
                 let bubble = ChatMessage(id: bubbleID, role: .assistant,
-                                          content: "", status: .sending)
+                                          content: "", status: .sending,
+                                          branchID: branchID)
                 try store.saveMessage(bubble)
                 messages.append(bubble)
 
                 try await Task.sleep(nanoseconds: bubbleDelayNanoseconds(for: chunk))
 
                 var updated = ChatMessage(id: bubbleID, role: .assistant,
-                                           content: chunk, status: .sent)
-                try store.updateMessage(updated)
+                                           content: chunk, status: .sent,
+                                           branchID: branchID)
+                try store.updateMessage(updated, branchID: branchID)
                 if let idx = messages.firstIndex(where: { $0.id == bubbleID }) {
                     messages[idx] = updated
                 }
             }
+
+            // 成功 → 更新 active branch 时间锚点
+            let now = Date()
+            updateBranchTimestamps(lastMessageAt: now)
         } catch let error as AppError {
-            failMessage(id: assistantID, message: error.userFacingMessage)
+            failMessage(id: assistantID, message: error.userFacingMessage, branchID: branchID)
         } catch {
-            failMessage(id: assistantID, message: "发生未知错误，请重试。")
+            failMessage(id: assistantID, message: "发生未知错误，请重试。", branchID: branchID)
         }
         isLoading = false
     }
 
-    private func failMessage(id: UUID, message: String) {
-        var failed = ChatMessage(id: id, role: .assistant, content: "", status: .failed)
+    private func failMessage(id: UUID, message: String, branchID: UUID) {
+        var failed = ChatMessage(id: id, role: .assistant, content: "", status: .failed,
+                                  branchID: branchID)
         failed.errorMessage = message
-        try? store.updateMessage(failed)
+        try? store.updateMessage(failed, branchID: branchID)
         if let idx = messages.firstIndex(where: { $0.id == id }) {
             messages[idx] = failed
         }
@@ -243,6 +271,36 @@ final class ChatViewModel {
     static func readWorldBookEntries() -> [WorldBookEntry] {
         guard let store = try? FileWorldBookStore() else { return [] }
         return (try? store.loadEntries()) ?? []
+    }
+
+    // MARK: - Branch Timestamps
+
+    /// 分支被激活/加载时更新 lastActivatedAt。
+    private func touchBranchActivation() {
+        let now = Date()
+        do {
+            var branches = try branchStore.loadBranches()
+            if let idx = branches.firstIndex(where: { $0.id == activeBranchID }) {
+                branches[idx].lastActivatedAt = now
+                try branchStore.updateBranch(branches[idx])
+            }
+        } catch {
+            // 非阻断：时间锚点更新失败不影响聊天
+        }
+    }
+
+    /// 新消息成功后更新 updatedAt 和 lastMessageAt。
+    private func updateBranchTimestamps(lastMessageAt: Date) {
+        do {
+            var branches = try branchStore.loadBranches()
+            if let idx = branches.firstIndex(where: { $0.id == activeBranchID }) {
+                branches[idx].updatedAt = lastMessageAt
+                branches[idx].lastMessageAt = lastMessageAt
+                try branchStore.updateBranch(branches[idx])
+            }
+        } catch {
+            // 非阻断
+        }
     }
 }
 

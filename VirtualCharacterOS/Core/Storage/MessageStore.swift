@@ -3,8 +3,12 @@ import Foundation
 /// 本地消息持久化协议。MVP 0 仅支持单角色消息。
 protocol MessageStore: Sendable {
     func loadMessages() throws -> [ChatMessage]
+    /// 只加载指定分支的消息。
+    func loadMessages(for branchID: UUID) throws -> [ChatMessage]
     func saveMessage(_ message: ChatMessage) throws
     func updateMessage(_ message: ChatMessage) throws
+    /// 按 id + branchID 更新，防止跨分支误伤。
+    func updateMessage(_ message: ChatMessage, branchID: UUID) throws
     func clearMessages() throws
     /// 全量替换消息（迁移专用）。
     func replaceAllMessages(_ messages: [ChatMessage]) throws
@@ -46,6 +50,11 @@ final class FileMessageStore: MessageStore {
         return try JSONDecoder().decode([ChatMessage].self, from: data)
     }
 
+    func loadMessages(for branchID: UUID) throws -> [ChatMessage] {
+        let all = try loadMessages()
+        return all.filter { $0.branchID == branchID }
+    }
+
     func saveMessage(_ message: ChatMessage) throws {
         var messages = try loadMessages()
         messages.append(message)
@@ -56,6 +65,15 @@ final class FileMessageStore: MessageStore {
         var messages = try loadMessages()
         guard let index = messages.firstIndex(where: { $0.id == message.id }) else {
             throw AppError.storage("消息未找到: \(message.id)")
+        }
+        messages[index] = message
+        try writeAtomic(messages)
+    }
+
+    func updateMessage(_ message: ChatMessage, branchID: UUID) throws {
+        var messages = try loadMessages()
+        guard let index = messages.firstIndex(where: { $0.id == message.id && $0.branchID == branchID }) else {
+            throw AppError.storage("消息未找到: \(message.id) in branch \(branchID)")
         }
         messages[index] = message
         try writeAtomic(messages)
