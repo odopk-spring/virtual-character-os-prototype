@@ -105,7 +105,8 @@ struct ContextBuilder: Sendable {
         pendingHint: String? = nil,
         manualMemories: [MemoryItem] = [],
         worldBookEntries: [WorldBookEntry] = [],
-        recentUserMessages: [ChatMessage] = []
+        recentUserMessages: [ChatMessage] = [],
+        allowsNarrationBlocks: Bool = false
     ) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
@@ -193,6 +194,8 @@ struct ContextBuilder: Sendable {
         - 直接说话，你就是\(character.name)。
         """
 
+        prompt += "\n\n" + buildMessagingFormatPolicy(allowsNarrationBlocks: allowsNarrationBlocks)
+
         if let hint = pendingHint {
             prompt += "\n\n\(hint)"
         }
@@ -245,7 +248,8 @@ struct ContextBuilder: Sendable {
         now: Date = Date(),
         characterSupplement: String? = nil,
         manualMemories: [MemoryItem] = [],
-        worldBookEntries: [WorldBookEntry] = []
+        worldBookEntries: [WorldBookEntry] = [],
+        allowsNarrationBlocks: Bool = false
     ) -> [ChatRequestMessage] {
         let effective = recentMessages
             .filter { $0.status == .sent && $0.role != .system }
@@ -261,7 +265,8 @@ struct ContextBuilder: Sendable {
                 pendingHint: pendingHint,
                 manualMemories: manualMemories,
                 worldBookEntries: worldBookEntries,
-                recentUserMessages: effective.filter { $0.role == .user }
+                recentUserMessages: effective.filter { $0.role == .user },
+                allowsNarrationBlocks: allowsNarrationBlocks
             )
         )
 
@@ -270,6 +275,24 @@ struct ContextBuilder: Sendable {
         }
 
         return [system] + contextMessages
+    }
+
+    private func buildMessagingFormatPolicy(allowsNarrationBlocks: Bool) -> String {
+        if allowsNarrationBlocks {
+            return """
+            【媒介格式规则】
+            当前界面是即时通讯聊天，不是小说正文。默认只发送普通聊天文字。
+            如果确实需要动作、心理活动、旁白或场景感，只能作为极少量独立旁白块输出，单独一行，使用 *动作/心理/旁白* 或 （动作/心理/旁白） 包起来。
+            不要把旁白和普通聊天文字混在同一句里。不要连续输出多个旁白块。不要把旁白当成主要回复内容。
+            """
+        } else {
+            return """
+            【媒介格式规则】
+            当前界面是即时通讯聊天，不是小说或文字角色扮演。你只能输出对方手机上能看到的聊天文字。
+            禁止动作描写、心理活动、旁白、场景描写、星号动作、括号内心，例如 *笑了笑*、（心里有点乱）、【旁白】。
+            情绪和状态只能通过你选择说什么、语气、长短、停顿来表达，不要用叙事标记表达。
+            """
+        }
     }
 
     // MARK: - Memory Injection

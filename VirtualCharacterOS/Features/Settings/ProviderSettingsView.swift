@@ -113,6 +113,17 @@ struct ProviderSettingsView: View {
                 Text("角色头像")
             }
 
+            // MARK: - Chat Display
+
+            Section {
+                Toggle("显示动作 / 心理旁白", isOn: $viewModel.allowsNarrationBlocks)
+                Text("关闭时会压制 *动作描写*、（心理活动）和旁白格式；开启后会以居中半透明小字显示这类内容。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("聊天显示")
+            }
+
             // MARK: - Chat History
 
             Section {
@@ -192,6 +203,9 @@ struct ProviderSettingsView: View {
                     viewModel.saveAvatar(from: data)
                 }
             }
+        }
+        .onChange(of: viewModel.allowsNarrationBlocks) { _, _ in
+            viewModel.saveChatDisplaySettings()
         }
     }
 }

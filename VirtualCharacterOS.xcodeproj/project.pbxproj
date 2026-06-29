@@ -23,6 +23,7 @@
 		5826A682FE376CEED354220C /* ChatSelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414DDA15F982AB284D574A01 /* ChatSelectionToolbar.swift */; };
 		58AD37420B42128EE9AA56EE /* ProviderConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22ACA07F98D2734326F056ED /* ProviderConfig.swift */; };
 		5C0868219B1DC2E9759E7376 /* ChatUIStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95E8E79100894919B8A789E /* ChatUIStyle.swift */; };
+		612DE417349F6532BB79C760 /* ChatNarrationFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF5592218C48A1252794B1C2 /* ChatNarrationFormatter.swift */; };
 		66A210DED12FB2638DC88E47 /* BranchSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8437DD99399E35FCA6176BB6 /* BranchSwitcherView.swift */; };
 		66D913259F32F86A2E8C40DB /* MessageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F005323220FDCCFD6939B4B1 /* MessageStore.swift */; };
 		686538441152182973032F3E /* ChatTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5550BDDDD50AF571D4CDA2CC /* ChatTopBar.swift */; };
@@ -103,6 +104,7 @@
 		C897ACCB7CA500A2B5EE134B /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		D1565EAB5CD0139EABD68F4A /* ChatResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatResponse.swift; sourceTree = "<group>"; };
 		D19F462ABDC677371AE2221F /* ProviderSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSettingsViewModel.swift; sourceTree = "<group>"; };
+		DF5592218C48A1252794B1C2 /* ChatNarrationFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatNarrationFormatter.swift; sourceTree = "<group>"; };
 		E154F794D72C2BE250C28ACF /* ChatTypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTypingIndicatorView.swift; sourceTree = "<group>"; };
 		F005323220FDCCFD6939B4B1 /* MessageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageStore.swift; sourceTree = "<group>"; };
 		F45100E5B8AE48BEC58B14D9 /* CharacterProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterProfileStore.swift; sourceTree = "<group>"; };
@@ -226,6 +228,7 @@
 				5892ACC960E505DA3049910D /* ChatBubbleShape.swift */,
 				277B0506560E6826AFAB4023 /* ChatBubbleView.swift */,
 				04C5C778BAC1818E8719D077 /* ChatInputBar.swift */,
+				DF5592218C48A1252794B1C2 /* ChatNarrationFormatter.swift */,
 				414DDA15F982AB284D574A01 /* ChatSelectionToolbar.swift */,
 				5550BDDDD50AF571D4CDA2CC /* ChatTopBar.swift */,
 				E154F794D72C2BE250C28ACF /* ChatTypingIndicatorView.swift */,
@@ -395,6 +398,7 @@
 				BBFA70231EBC69703DD5B9F3 /* ChatHistoryDateBrowserView.swift in Sources */,
 				04580F86B76A14E597ABDE20 /* ChatInputBar.swift in Sources */,
 				7E4A5E29259E884390E64D66 /* ChatMessage.swift in Sources */,
+				612DE417349F6532BB79C760 /* ChatNarrationFormatter.swift in Sources */,
 				DBA093FD9E99B08793CE3D72 /* ChatRequest.swift in Sources */,
 				7E6F43842B32EB66BA08899B /* ChatResponse.swift in Sources */,
 				5826A682FE376CEED354220C /* ChatSelectionToolbar.swift in Sources */,

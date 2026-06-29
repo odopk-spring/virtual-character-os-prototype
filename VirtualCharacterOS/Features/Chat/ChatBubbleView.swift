@@ -11,6 +11,10 @@ struct ChatBubbleView: View {
     var isSelected: Bool = false
     var onSelect: ((ChatMessage) -> Void)? = nil
 
+    private var narrationText: String? {
+        ChatNarrationFormatter.narrationText(from: message)
+    }
+
     private let tailW: CGFloat = ChatUIStyle.bubbleTailWidth
     private let tailH: CGFloat = ChatUIStyle.bubbleTailHeight
     private let tailOff: CGFloat = ChatUIStyle.bubbleTailTopOffset
@@ -31,6 +35,8 @@ struct ChatBubbleView: View {
     var body: some View {
         if isAssistantPlaceholder {
             Color.clear.frame(height: 0)
+        } else if let narrationText {
+            narrationBlock(narrationText)
         } else if isSelectionMode && message.status == .sent {
             HStack(spacing: 10) {
                 selectionIndicator
@@ -56,6 +62,36 @@ struct ChatBubbleView: View {
             }
             .padding(.horizontal, ChatUIStyle.pageHorizontalPadding)
         }
+    }
+
+    private func narrationBlock(_ text: String) -> some View {
+        HStack {
+            Spacer(minLength: 48)
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.thinMaterial.opacity(0.82))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .contextMenu {
+                    Button {
+                        UIPasteboard.general.string = text
+                    } label: {
+                        Label("复制", systemImage: "doc.on.doc")
+                    }
+                    if message.status == .sent, !isSelectionMode {
+                        Button {
+                            onSelect?(message)
+                        } label: {
+                            Label("选择", systemImage: "checkmark.circle")
+                        }
+                    }
+                }
+            Spacer(minLength: 48)
+        }
+        .padding(.horizontal, ChatUIStyle.pageHorizontalPadding)
     }
 
     private var selectionIndicator: some View {

@@ -304,11 +304,13 @@ final class ChatViewModel {
             let supplement = Self.readCharacterSupplement()
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()
+            let allowsNarrationBlocks = Self.readAllowsNarrationBlocks()
             let requestMessages = contextBuilder.buildRequestMessages(
                 recentMessages: branchMessages, character: character,
                 characterSupplement: supplement,
                 manualMemories: memories,
-                worldBookEntries: worldBook
+                worldBookEntries: worldBook,
+                allowsNarrationBlocks: allowsNarrationBlocks
             )
 
             #if DEBUG
@@ -326,7 +328,7 @@ final class ChatViewModel {
             let response = try await provider.send(request, config: config)
 
             let raw = response.content
-            let chunks = splitAssistantReply(raw)
+            let chunks = splitAssistantReply(raw, allowsNarrationBlocks: allowsNarrationBlocks)
 
             // 第一条 chunk 复用占位消息（带 branchID 保护）
             let firstChunk = chunks[0]
@@ -406,13 +408,31 @@ final class ChatViewModel {
     }
 
     /// 将模型回复拆成 1-4 个气泡；不强制多气泡，优先保留自然语义边界。
-    private func splitAssistantReply(_ text: String) -> [String] {
-        let cleaned = normalizeAssistantReply(text)
+    private func splitAssistantReply(_ text: String, allowsNarrationBlocks: Bool) -> [String] {
+        let prepared = allowsNarrationBlocks
+            ? text
+            : ChatNarrationFormatter.removingNarrationMarkup(from: text)
+        let cleaned = normalizeAssistantReply(prepared)
         guard !cleaned.isEmpty else { return [cleaned] }
 
-        let newlineSegments = splitByNewlineBlocks(cleaned)
-        let semanticSegments = newlineSegments.flatMap { splitBySemanticBreakpoints($0) }
-        let sentenceSegments = semanticSegments.flatMap { splitLongSegmentBySentencePunctuation($0) }
+        let narrationAwareSegments = allowsNarrationBlocks
+            ? ChatNarrationFormatter.splitNarrationSegments(cleaned)
+            : [cleaned]
+        let newlineSegments = narrationAwareSegments.flatMap { segment in
+            ChatNarrationFormatter.narrationText(from: segment) == nil
+                ? splitByNewlineBlocks(segment)
+                : [segment]
+        }
+        let semanticSegments = newlineSegments.flatMap { segment in
+            ChatNarrationFormatter.narrationText(from: segment) == nil
+                ? splitBySemanticBreakpoints(segment)
+                : [segment]
+        }
+        let sentenceSegments = semanticSegments.flatMap { segment in
+            ChatNarrationFormatter.narrationText(from: segment) == nil
+                ? splitLongSegmentBySentencePunctuation(segment)
+                : [segment]
+        }
         let merged = mergeTinyReplyFragments(sentenceSegments)
         let limited = limitReplySegments(merged, maxCount: 4)
 
@@ -567,6 +587,12 @@ final class ChatViewModel {
         while index < cleaned.count {
             let segment = cleaned[index]
 
+            if ChatNarrationFormatter.narrationText(from: segment) != nil {
+                merged.append(segment)
+                index += 1
+                continue
+            }
+
             if shouldMergeWithNeighbor(segment),
                index + 1 < cleaned.count {
                 let combined = segment + cleaned[index + 1]
@@ -668,6 +694,10 @@ final class ChatViewModel {
     static func readWorldBookEntries() -> [WorldBookEntry] {
         guard let store = try? FileWorldBookStore() else { return [] }
         return (try? store.loadEntries()) ?? []
+    }
+
+    static func readAllowsNarrationBlocks() -> Bool {
+        UserDefaults.standard.bool(forKey: ChatNarrationFormatter.settingsKey)
     }
 
     /// 生成去重后的分支默认名。base 格式为 "分支·父名称"，同名已存在则追加数字后缀。

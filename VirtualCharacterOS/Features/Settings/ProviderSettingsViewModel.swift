@@ -16,6 +16,7 @@ final class ProviderSettingsViewModel {
     var alertMessage: String = ""
     var characterSupplement: String = ""
     var avatarImage: UIImage?
+    var allowsNarrationBlocks: Bool
 
     // MARK: - 内部依赖
 
@@ -36,6 +37,7 @@ final class ProviderSettingsViewModel {
         self.keychainAccount = savedProviderName
         self.characterSupplement = defaults.string(forKey: Self.characterSupplementKey) ?? ""
         self.avatarImage = AvatarStore.loadImage()
+        self.allowsNarrationBlocks = defaults.bool(forKey: ChatNarrationFormatter.settingsKey)
 
         // 检查 Keychain 是否已有 Key
         refreshKeyStatus()
@@ -85,6 +87,10 @@ final class ProviderSettingsViewModel {
         let clipped = String(trimmed.prefix(1000))
         UserDefaults.standard.set(clipped, forKey: Self.characterSupplementKey)
         characterSupplement = clipped
+    }
+
+    func saveChatDisplaySettings() {
+        UserDefaults.standard.set(allowsNarrationBlocks, forKey: ChatNarrationFormatter.settingsKey)
     }
 
     // MARK: - 角色头像
