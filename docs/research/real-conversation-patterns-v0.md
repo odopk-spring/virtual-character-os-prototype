@@ -115,7 +115,6 @@ Given the latest user message is `有点累`:
 
 ### Deferred Follow-ups
 
-- Rule 2: Brevity bias.
 - Rule 3: Multi-bubble segmentation calibration.
 - Rule 4: Delivery timing matrix.
 - Rule 5: Question suppression.
@@ -124,3 +123,103 @@ Given the latest user message is `有点累`:
 - Rule 8: Rule tier classification.
 - Rule 9: Time gap response.
 - Rule 10: Boundary honesty.
+
+## Rule 2: Brevity Bias v0
+
+### Problem
+
+LLM casual replies are systematically longer, more explanatory, and more complete than ordinary human chat replies. This makes a virtual character feel like an assistant, teacher, or customer service script instead of a person in a messaging app.
+
+VCO already handles `minimal` inputs. The remaining issue is that `low`, `light`, and `normal` inputs can still produce long explanations, emotional summaries, advice, or question-heavy endings.
+
+### Evidence
+
+- Real messaging corpora generally show short message lengths, with a typical personal-chat message closer to a short phrase than a full paragraph.
+- Personal chat timing and length studies suggest that everyday turns often carry one small idea, not a full analysis.
+- Chinese public and topic-driven dialogue datasets provide only rough quantity references; they are not private long-term 1v1 chat data and must not be used as training material.
+- LLM small-talk research indicates that model replies tend to be much more verbose than human casual replies.
+
+These are rule-extraction references only. Do not import dataset text, examples, or private conversation content into code, prompt, WorldBook, logs, or tests.
+
+### Length Targets
+
+| Signal | Target length | Bubble target | Notes |
+|---|---:|---:|---|
+| `minimal` | 1-5 Chinese chars | 1 bubble | Unchanged from Rule 1. No question, no explanation, no topic reopening. |
+| `low` | 5-15 Chinese chars | 1 bubble | Acknowledge lightly. Default no question. No analysis. |
+| `light` | 10-35 Chinese chars | usually 1 bubble, max 2 | Short natural reply with a little attitude or mood. Avoid advice mode. |
+| `normal` | 20-70 Chinese chars | 1-2 bubbles | One core idea is enough. Do not write a complete mini-essay. |
+| `deep` | 80-220 Chinese chars per full reply | max 3 bubbles | Only for explicit requests for detail, analysis, plan, code, prompt, or complete explanation. Still conversational. |
+
+### Policy
+
+1. Default to short.
+2. One natural sentence is often enough.
+3. Do not explain unless the user asks for explanation.
+4. Do not summarize the user's message unless clarification is truly needed.
+5. Do not add advice unless asked or the context clearly calls for one small suggestion.
+6. Do not end every reply with a question.
+7. It is acceptable for a reply to feel slightly incomplete, as long as it sounds like natural chat.
+8. Deep requests may be fuller, but should still avoid essay, customer-service, or tutorial structure.
+
+### Engineering Behavior
+
+In v0:
+
+- Keep `minimal` behavior unchanged.
+- Add an always-on brevity hint inside the reply length policy.
+- Calibrate `low`, `light`, `normal`, and `deep` prompt wording with the length targets above.
+- Suppress pending question hints for `low`.
+- Soften pending question hints for `light`.
+- Keep pending question behavior for `normal` and `deep`, but phrase it as a short optional callback.
+- Limit assistant bubble count by signal:
+  - `minimal`: max 1
+  - `low`: max 1
+  - `light`: max 2
+  - `normal`: max 2
+  - `deep`: max 3
+- Do not rewrite the segmentation algorithm.
+- Do not change delivery delay logic.
+
+### Non-goals
+
+- No true silence / no-reply.
+- No model training.
+- No dataset import.
+- No Time Awareness.
+- No Memory recall redesign.
+- No WorldBook seed or schema change.
+- No UI change.
+
+### Acceptance Criteria
+
+Given the latest user message is `还行吧`, `不知道`, `可以`, or `不是`:
+
+- Signal is not `minimal`.
+- Reply policy targets a short `low` response.
+- Pending question hint is not injected.
+- Assistant reply is limited to 1 bubble.
+
+Given the latest user message is `今天有点累` or `刚刚吃完饭`:
+
+- Reply policy targets a short `light` response.
+- Pending question hint, if present, is softened.
+- Assistant reply is limited to at most 2 bubbles.
+
+Given the latest user message is `我今天想改一个小功能，但是不知道怎么拆任务`:
+
+- Reply policy targets a concise `normal` response.
+- Assistant reply is limited to at most 2 bubbles.
+
+Given the latest user message explicitly asks for detail, analysis, code, prompt, or a complete plan:
+
+- Signal remains `deep`.
+- The answer may be fuller, but remains conversational and is limited to at most 3 bubbles.
+
+### Risks
+
+- Prompt-only brevity does not guarantee a short model answer.
+- Over-compression may make some characters feel cold or uninterested.
+- Deep replies may become too short if the prompt is tuned too aggressively.
+- This rule does not fully solve excessive questioning; that remains a future dedicated rule.
+- This rule does not fully solve tutorial-like style; that remains a future dedicated rule.

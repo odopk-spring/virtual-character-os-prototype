@@ -68,7 +68,7 @@ struct ContextBuilder: Sendable {
         }
 
         // low：短，但还有一点态度或内容。
-        let lowPhrases = ["好吧", "可以", "可以吧", "不是", "还行", "不知道", "无所谓", "随便"]
+        let lowPhrases = ["好吧", "可以", "可以吧", "不是", "还行", "还行吧", "没什么", "不知道", "无所谓", "随便"]
         if lowPhrases.contains(trimmed) { return .low }
 
         if trimmed.count <= 2 && !trimmed.contains("？") && !trimmed.contains("?") {
@@ -112,20 +112,23 @@ struct ContextBuilder: Sendable {
         case .minimal:
             specific = "当前用户上一条消息几乎没有新增信息：只给 1 个极短自然回应，尽量 1-5 个中文字符。不要解释、不要总结、不要追问、不要重新打开话题；可以让这一轮自然结束。"
         case .low:
-            specific = "当前用户上一条消息信息量很低：请给很短的自然回应，约 5-15 个中文字符，不分析、不展开、不追问。"
+            specific = "当前用户上一条消息信息量很低：回复约 5-15 个中文字符，1 个短句即可。轻轻接住，不分析、不展开、默认不追问。"
         case .light:
-            specific = "当前用户上一条消息偏轻量闲聊：请短回应，接住语气即可，不展开分析。"
+            specific = "当前用户上一条消息偏轻量闲聊：回复约 10-35 个中文字符。可以有一点态度或情绪，但不要进入建议、安慰或分析模式。"
         case .normal:
-            specific = "当前用户上一条消息为普通对话：直接回应，默认1-2个短气泡，不要长篇。"
+            specific = "当前用户上一条消息为普通对话：回复约 20-70 个中文字符，只表达 1 个核心意思。如有自然断点可拆成 1-2 个短气泡，不写小作文。"
         case .deep:
-            specific = "当前用户明确要求详细帮助：可以更完整地回应，但仍避免无意义扩写和废话。"
+            specific = "当前用户明确要求详细帮助：可以更完整，整轮回复约 80-220 个中文字符，仍保持聊天语气。避免论文式、客服式、教程式结构。"
         }
         return """
+        【简短偏置】
+        默认把回复写短。真实聊天里多数回复只表达一个小意思，不需要完整解释、总结或建议。除非用户明确要求详细，否则宁可短一点、自然一点，也不要像教程或客服。
+
         【回复长度策略】
         根据用户上一条消息的信息量调整回复长度。
-        如果用户只是发语气词、符号、表情或没有明确问题，只做极短自然回应。
         默认聊天保持短句和少量气泡，像真实聊天，不写成教程、报告或列表。
-        只有用户明确要求时才允许更长更结构化的回复。
+        不要默认解释背景原因，不要默认总结对方的话，不要每轮都以问题结尾。
+        只有用户明确要求详细、分析、方案、代码、提示词或完整解释时才允许更长。
         \(specific)
         """
     }
@@ -291,7 +294,7 @@ struct ContextBuilder: Sendable {
 
         let recentUserMessages = effective.filter { $0.role == .user }
         let signal = classifyUserReplySignal(recentUserMessages.last)
-        let pendingHint = signal == .minimal ? nil : buildPendingQuestionHint(from: Array(effective))
+        let pendingHint = buildPendingQuestionHint(from: Array(effective), signal: signal)
 
         let system = ChatRequestMessage(
             role: .system,
@@ -734,7 +737,11 @@ struct ContextBuilder: Sendable {
         return String(cn[..<end])
     }
 
-    private func buildPendingQuestionHint(from messages: [ChatMessage]) -> String? {
+    private func buildPendingQuestionHint(from messages: [ChatMessage], signal: ReplySignalStrength) -> String? {
+        if signal == .minimal || signal == .low {
+            return nil
+        }
+
         guard messages.count >= 2 else { return nil }
         guard let question = extractLatestAssistantQuestion(from: messages) else {
             return nil
@@ -755,10 +762,19 @@ struct ContextBuilder: Sendable {
         if userLikelyAnswered(question: question, userText: userMsg.content) {
             return nil
         }
+
+        if signal == .light {
+            return """
+            【未回答问题提示】
+            你之前问过对方："\(question)"
+            对方刚才没有正面回答。当前对方输入偏轻量，如果自然就一句话轻轻带回；不合适就先不追问。
+            """
+        }
+
         return """
         【未回答问题提示】
         你之前问过对方："\(question)"
-        对方刚才没有正面回答。你可以在合适时自然带回这个问题，但不要逼问，也不要每轮重复追问。
+        对方刚才没有正面回答。你可以在合适时用一句短话自然带回这个问题，但不要逼问，也不要每轮重复追问。
         """
     }
 }

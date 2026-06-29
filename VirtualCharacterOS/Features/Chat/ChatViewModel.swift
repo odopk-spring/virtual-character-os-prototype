@@ -414,7 +414,7 @@ final class ChatViewModel {
         UInt64(0.22 * 1_000_000_000)
     }
 
-    /// 将模型回复拆成 1-4 个气泡；不强制多气泡，优先保留自然语义边界。
+    /// 将模型回复拆成少量气泡；不强制多气泡，优先保留自然语义边界。
     private func splitAssistantReply(
         _ text: String,
         allowsNarrationBlocks: Bool,
@@ -445,10 +445,21 @@ final class ChatViewModel {
                 : [segment]
         }
         let merged = mergeTinyReplyFragments(sentenceSegments)
-        let maxBubbles = replySignal == .minimal ? 1 : 4
+        let maxBubbles = maxBubbleCount(for: replySignal)
         let limited = limitReplySegments(merged, maxCount: maxBubbles)
 
         return limited.isEmpty ? [cleaned] : limited
+    }
+
+    private func maxBubbleCount(for signal: ContextBuilder.ReplySignalStrength) -> Int {
+        switch signal {
+        case .minimal, .low:
+            return 1
+        case .light, .normal:
+            return 2
+        case .deep:
+            return 3
+        }
     }
 
     /// 去掉文本内部的换行，只保留单行气泡。
