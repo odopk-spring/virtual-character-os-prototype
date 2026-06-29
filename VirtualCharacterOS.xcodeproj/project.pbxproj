@@ -20,6 +20,7 @@
 		4591B0C3CE73786EDB51700F /* CharacterProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45100E5B8AE48BEC58B14D9 /* CharacterProfileStore.swift */; };
 		4EBF21AC0F7024A50C77622F /* MemoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8BDD8519B4A4CAA4E5E6CA /* MemoryStore.swift */; };
 		4F9F132F8EBC4C30FDC49EEA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87774F3A1E4D4891F3AA6A1 /* ContentView.swift */; };
+		5826A682FE376CEED354220C /* ChatSelectionToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414DDA15F982AB284D574A01 /* ChatSelectionToolbar.swift */; };
 		58AD37420B42128EE9AA56EE /* ProviderConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22ACA07F98D2734326F056ED /* ProviderConfig.swift */; };
 		5C0868219B1DC2E9759E7376 /* ChatUIStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95E8E79100894919B8A789E /* ChatUIStyle.swift */; };
 		66A210DED12FB2638DC88E47 /* BranchSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8437DD99399E35FCA6176BB6 /* BranchSwitcherView.swift */; };
@@ -49,6 +50,7 @@
 		D752D85FAA386108634B7DC6 /* MemoryEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E4C21E091DFAA1EFDF04A0 /* MemoryEditorView.swift */; };
 		D7633D2EDCA22DDE28DAA334 /* WorldBookViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CD5308F3EAF6E6FC91823D /* WorldBookViewModel.swift */; };
 		DBA093FD9E99B08793CE3D72 /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45435917249B92DE6F42031B /* ChatRequest.swift */; };
+		EB6017230119A8C5F626FE69 /* HiddenMessageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E0CA539A67ECBFF17095BC /* HiddenMessageStore.swift */; };
 		F5F17A63E7381CA60F26FF59 /* BranchMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231E227B8353D2FC41BCB5ED /* BranchMigration.swift */; };
 /* End PBXBuildFile section */
 
@@ -65,12 +67,14 @@
 		38AAF8FF40454E276CCF6864 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
 		3CC0182FEC1EC12F548E5401 /* ProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSettingsView.swift; sourceTree = "<group>"; };
 		3F8BDD8519B4A4CAA4E5E6CA /* MemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStore.swift; sourceTree = "<group>"; };
+		414DDA15F982AB284D574A01 /* ChatSelectionToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSelectionToolbar.swift; sourceTree = "<group>"; };
 		45435917249B92DE6F42031B /* ChatRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRequest.swift; sourceTree = "<group>"; };
 		53E5138C1D38FFA97725A813 /* BranchMessageResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchMessageResolver.swift; sourceTree = "<group>"; };
 		5550BDDDD50AF571D4CDA2CC /* ChatTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTopBar.swift; sourceTree = "<group>"; };
 		57245D74354762EF373A906A /* WorldBookEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookEntry.swift; sourceTree = "<group>"; };
 		5892ACC960E505DA3049910D /* ChatBubbleShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatBubbleShape.swift; sourceTree = "<group>"; };
 		59B887BDA0B3ABAE9C12359A /* AvatarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarStore.swift; sourceTree = "<group>"; };
+		72E0CA539A67ECBFF17095BC /* HiddenMessageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenMessageStore.swift; sourceTree = "<group>"; };
 		72E4C21E091DFAA1EFDF04A0 /* MemoryEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryEditorView.swift; sourceTree = "<group>"; };
 		73B10BD8A30440860DD85C2A /* MemoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModel.swift; sourceTree = "<group>"; };
 		76CD5308F3EAF6E6FC91823D /* WorldBookViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookViewModel.swift; sourceTree = "<group>"; };
@@ -209,6 +213,7 @@
 				5892ACC960E505DA3049910D /* ChatBubbleShape.swift */,
 				277B0506560E6826AFAB4023 /* ChatBubbleView.swift */,
 				04C5C778BAC1818E8719D077 /* ChatInputBar.swift */,
+				414DDA15F982AB284D574A01 /* ChatSelectionToolbar.swift */,
 				5550BDDDD50AF571D4CDA2CC /* ChatTopBar.swift */,
 				E154F794D72C2BE250C28ACF /* ChatTypingIndicatorView.swift */,
 				B95E8E79100894919B8A789E /* ChatUIStyle.swift */,
@@ -250,6 +255,7 @@
 				231E227B8353D2FC41BCB5ED /* BranchMigration.swift */,
 				926F8D7D47802D78F5AB06AA /* BranchStore.swift */,
 				F45100E5B8AE48BEC58B14D9 /* CharacterProfileStore.swift */,
+				72E0CA539A67ECBFF17095BC /* HiddenMessageStore.swift */,
 				3F8BDD8519B4A4CAA4E5E6CA /* MemoryStore.swift */,
 				F005323220FDCCFD6939B4B1 /* MessageStore.swift */,
 				B41E65121F5BC8222C87CDDE /* WorldBookStore.swift */,
@@ -376,6 +382,7 @@
 				7E4A5E29259E884390E64D66 /* ChatMessage.swift in Sources */,
 				DBA093FD9E99B08793CE3D72 /* ChatRequest.swift in Sources */,
 				7E6F43842B32EB66BA08899B /* ChatResponse.swift in Sources */,
+				5826A682FE376CEED354220C /* ChatSelectionToolbar.swift in Sources */,
 				686538441152182973032F3E /* ChatTopBar.swift in Sources */,
 				98346E314DA5B829C926B58C /* ChatTypingIndicatorView.swift in Sources */,
 				5C0868219B1DC2E9759E7376 /* ChatUIStyle.swift in Sources */,
@@ -384,6 +391,7 @@
 				4F9F132F8EBC4C30FDC49EEA /* ContentView.swift in Sources */,
 				310D0F6D271FC5539283CAE1 /* ContextBuilder.swift in Sources */,
 				C7998B5595C0C035A42EA686 /* ConversationBranch.swift in Sources */,
+				EB6017230119A8C5F626FE69 /* HiddenMessageStore.swift in Sources */,
 				7115BAD6676454E86A7E1339 /* KeychainStore.swift in Sources */,
 				99A11828CA70D4F0B528D45E /* LLMProvider.swift in Sources */,
 				D752D85FAA386108634B7DC6 /* MemoryEditorView.swift in Sources */,

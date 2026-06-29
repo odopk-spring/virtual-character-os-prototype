@@ -7,6 +7,9 @@ struct ChatBubbleView: View {
     let availableWidth: CGFloat
     var characterAvatarImage: UIImage? = nil
     var onRestore: ((ChatMessage) -> Void)? = nil
+    var isSelectionMode: Bool = false
+    var isSelected: Bool = false
+    var onSelect: ((ChatMessage) -> Void)? = nil
 
     private let tailW: CGFloat = ChatUIStyle.bubbleTailWidth
     private let tailH: CGFloat = ChatUIStyle.bubbleTailHeight
@@ -28,6 +31,15 @@ struct ChatBubbleView: View {
     var body: some View {
         if isAssistantPlaceholder {
             Color.clear.frame(height: 0)
+        } else if isSelectionMode && message.status == .sent {
+            HStack(spacing: 10) {
+                selectionIndicator
+                simplifiedContent
+                if message.role == .user { Spacer(minLength: 0) }
+            }
+            .padding(.horizontal, ChatUIStyle.pageHorizontalPadding)
+            .contentShape(Rectangle())
+            .onTapGesture { onSelect?(message) }
         } else {
             HStack(alignment: .top, spacing: ChatUIStyle.avatarToBubbleGap) {
                 if message.role == .assistant {
@@ -43,6 +55,32 @@ struct ChatBubbleView: View {
                 }
             }
             .padding(.horizontal, ChatUIStyle.pageHorizontalPadding)
+        }
+    }
+
+    private var selectionIndicator: some View {
+        ZStack {
+            Circle()
+                .stroke(isSelected ? .blue : .gray.opacity(0.5), lineWidth: 2)
+                .frame(width: 24, height: 24)
+            if isSelected {
+                Circle()
+                    .fill(.blue)
+                    .frame(width: 14, height: 14)
+            }
+        }
+    }
+
+    private var simplifiedContent: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(message.content)
+                .font(.system(size: ChatUIStyle.bubbleFontSize))
+                .foregroundStyle(ChatUIStyle.bubbleText)
+                .padding(.horizontal, ChatUIStyle.bubbleHorizontalPadding)
+                .padding(.vertical, ChatUIStyle.bubbleVerticalPadding)
+                .background(bubbleColor)
+                .clipShape(RoundedRectangle(cornerRadius: ChatUIStyle.bubbleCornerRadius))
+                .frame(maxWidth: bubbleMaxWidth, alignment: message.role == .user ? .trailing : .leading)
         }
     }
 
@@ -67,12 +105,19 @@ struct ChatBubbleView: View {
                 )
                 .frame(maxWidth: bubbleMaxWidth, alignment: message.role == .user ? .trailing : .leading)
                 .contextMenu {
+                    if message.status == .sent, !isSelectionMode {
+                        Button {
+                            onSelect?(message)
+                        } label: {
+                            Label("选择", systemImage: "checkmark.circle")
+                        }
+                    }
                     Button {
                         UIPasteboard.general.string = message.content
                     } label: {
                         Label("复制", systemImage: "doc.on.doc")
                     }
-                    if message.status == .sent {
+                    if message.status == .sent, !isSelectionMode {
                         Button {
                             onRestore?(message)
                         } label: {
