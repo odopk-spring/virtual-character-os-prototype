@@ -21,6 +21,7 @@ struct ContextBuilder: Sendable {
         static let maxWorldBookKeywordsShown = 5
         static let maxWorldBookSectionChars = 1800
         static let maxWorldBookRecentUserMessages = 6
+        static let maxAlwaysOnRuleWorldBookEntries = 4
     }
 
     init(maxRecentMessages: Int = Budget.maxRecentMessages) {
@@ -295,50 +296,16 @@ struct ContextBuilder: Sendable {
 
     // MARK: - WorldBook Injection
 
-    /// 关键词触发筛选 + 格式化【世界书】段落。
-    /// 匹配范围：最近 6 条 user 消息。keyword/title 命中则纳入。
-    /// 排序：priority 高优先 → 命中关键词数多优先 → updatedAt 新优先。
+    private struct WorldBookSelection {
+        let entry: WorldBookEntry
+        let score: Int
+    }
+
+    /// rule 类条目是行为准则，启用后默认进入候选；非 rule 仍只由最近用户消息的关键词/title 触发。
+    /// 最终仍统一受 maxWorldBookEntries 和 maxWorldBookSectionChars 预算限制。
     private func buildWorldBookHint(from entries: [WorldBookEntry], recentUserMessages: [ChatMessage]) -> String? {
-        let enabled = entries.filter { $0.isEnabled && !$0.keywords.filter({ !$0.isEmpty }).isEmpty }
-        guard !enabled.isEmpty else { return nil }
-
-        let scope = recentUserMessages
-            .suffix(Budget.maxWorldBookRecentUserMessages)
-            .map { $0.content }
-        guard !scope.isEmpty else { return nil }
-
-        let searchText = scope.joined(separator: " ")
-        let textTokens = tokenizeForMatch(searchText)
-
-        // 评分：priority*10 + matchedKeywordCount*5
-        var scored: [(entry: WorldBookEntry, score: Int, matchedKeywords: [String])] = []
-        for entry in enabled {
-            let keywords = entry.keywords
-                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-            var matched: [String] = []
-            for kw in keywords {
-                if termMatchesInText(term: kw, textTokens: textTokens, rawText: searchText) {
-                    matched.append(kw)
-                }
-            }
-            var score = entry.priority * 10 + matched.count * 5
-            // title 作为弱关键词
-            if termMatchesInText(term: entry.title, textTokens: textTokens, rawText: searchText) {
-                score += 3
-            }
-
-            if score > 0 {
-                scored.append((entry, score, matched))
-            }
-        }
-
-        guard !scored.isEmpty else { return nil }
-
-        scored.sort {
-            if $0.score != $1.score { return $0.score > $1.score }
-            return $0.entry.updatedAt > $1.entry.updatedAt
-        }
+        let selected = selectWorldBookEntries(from: entries, recentUserMessages: recentUserMessages)
+        guard !selected.isEmpty else { return nil }
 
         let header = """
         【世界书】
@@ -348,7 +315,7 @@ struct ContextBuilder: Sendable {
         var body = ""
         var count = 0
 
-        for item in scored {
+        for item in selected {
             guard count < Budget.maxWorldBookEntries else { break }
 
             let title = String(item.entry.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -371,6 +338,101 @@ struct ContextBuilder: Sendable {
 
         guard count > 0 else { return nil }
         return header + body
+    }
+
+    private func selectWorldBookEntries(
+        from entries: [WorldBookEntry],
+        recentUserMessages: [ChatMessage]
+    ) -> [WorldBookSelection] {
+        let enabled = entries.filter { $0.isEnabled }
+        guard !enabled.isEmpty else { return [] }
+
+        let ruleLimit = min(Budget.maxAlwaysOnRuleWorldBookEntries, Budget.maxWorldBookEntries)
+        let ruleSelections = alwaysOnRuleEntries(from: enabled, limit: ruleLimit)
+        let remainingSlots = max(Budget.maxWorldBookEntries - ruleSelections.count, 0)
+        let triggeredSelections = triggeredWorldBookEntries(
+            from: enabled,
+            recentUserMessages: recentUserMessages,
+            limit: remainingSlots
+        )
+
+        return mergeDeduplicatedWorldBookSelections(ruleSelections + triggeredSelections)
+    }
+
+    private func alwaysOnRuleEntries(from entries: [WorldBookEntry], limit: Int) -> [WorldBookSelection] {
+        guard limit > 0 else { return [] }
+
+        return entries
+            .filter { $0.category == .rule }
+            .sorted(by: sortWorldBookEntries)
+            .prefix(limit)
+            .map {
+                WorldBookSelection(
+                    entry: $0,
+                    score: $0.priority * 10
+                )
+            }
+    }
+
+    private func triggeredWorldBookEntries(
+        from entries: [WorldBookEntry],
+        recentUserMessages: [ChatMessage],
+        limit: Int
+    ) -> [WorldBookSelection] {
+        guard limit > 0 else { return [] }
+
+        let scope = recentUserMessages
+            .suffix(Budget.maxWorldBookRecentUserMessages)
+            .map { $0.content }
+        guard !scope.isEmpty else { return [] }
+
+        let searchText = scope.joined(separator: " ")
+        let textTokens = tokenizeForMatch(searchText)
+
+        var selections: [WorldBookSelection] = []
+        for entry in entries where entry.category != .rule {
+            let keywords = entry.keywords
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+            let matched = keywords.filter {
+                termMatchesInText(term: $0, textTokens: textTokens, rawText: searchText)
+            }
+            let titleMatched = termMatchesInText(term: entry.title, textTokens: textTokens, rawText: searchText)
+            guard !matched.isEmpty || titleMatched else { continue }
+
+            let titleScore = titleMatched ? 3 : 0
+            let score = entry.priority * 10 + matched.count * 5 + titleScore
+            selections.append(
+                WorldBookSelection(
+                    entry: entry,
+                    score: score
+                )
+            )
+        }
+
+        return selections
+            .sorted {
+                if $0.score != $1.score { return $0.score > $1.score }
+                return sortWorldBookEntries($0.entry, $1.entry)
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private func mergeDeduplicatedWorldBookSelections(_ selections: [WorldBookSelection]) -> [WorldBookSelection] {
+        var seen = Set<UUID>()
+        var result: [WorldBookSelection] = []
+
+        for selection in selections where seen.insert(selection.entry.id).inserted {
+            result.append(selection)
+        }
+        return result
+    }
+
+    private func sortWorldBookEntries(_ lhs: WorldBookEntry, _ rhs: WorldBookEntry) -> Bool {
+        if lhs.priority != rhs.priority { return lhs.priority > rhs.priority }
+        if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+        return lhs.createdAt > rhs.createdAt
     }
 
     // MARK: - Debug Summary
