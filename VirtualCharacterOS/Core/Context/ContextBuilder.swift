@@ -105,8 +105,18 @@ struct ContextBuilder: Sendable {
         return false
     }
 
-    /// 根据信号强度生成回复长度策略 prompt。
-    private func buildReplyLengthPolicy(for signal: ReplySignalStrength) -> String {
+    /// 回复长度等级。
+    enum ReplyLengthLevel: String, CaseIterable {
+        case short
+        case normal
+        case long
+    }
+
+    /// 根据信号强度 + 长度等级生成回复长度策略 prompt。
+    private func buildReplyLengthPolicy(
+        for signal: ReplySignalStrength,
+        lengthLevel: ReplyLengthLevel = .normal
+    ) -> String {
         let specific: String
         switch signal {
         case .minimal:
@@ -120,22 +130,33 @@ struct ContextBuilder: Sendable {
         case .deep:
             specific = "当前用户明确要求详细帮助：可以更完整，整轮回复约 80-220 个中文字符，仍保持聊天语气。可以问精确澄清问题，但避免泛泛续聊和论文式、客服式、教程式结构。"
         }
+
+        let lengthNote: String
+        switch lengthLevel {
+        case .short:
+            lengthNote = "当前回复长度设置为简短：在上面的基础上再缩短一半左右，说最核心的就够。"
+        case .normal:
+            lengthNote = ""
+        case .long:
+            lengthNote = "当前回复长度设置为详细：在上面的基础上可以再把事情说清楚一点，比平时稍长。但不要为了凑字数废话。"
+        }
+
         return """
         【简短偏置】
         默认把回复写短。真实聊天里多数回复只表达一个小意思，不需要完整解释、总结或建议。除非用户明确要求详细，否则宁可短一点、自然一点，也不要像教程或客服。
 
         【追问克制】
-        不要把每轮回复都写成问题结尾。很多回复可以只是接一句、评价一句、轻轻分享一点，或者自然停住。除非对方明确需要追问、信息明显不足、或正在做详细任务，否则不要用“你呢”“要不要继续聊”“可以跟我说说吗”这类泛问。
+        不要把每轮回复都写成问题结尾。很多回复可以只是接一句、评价一句、轻轻分享一点，或者自然停住。除非对方明确需要追问、信息明显不足、或正在做详细任务，否则不要用"你呢""要不要继续聊""可以跟我说说吗"这类泛问。
 
         【非教程模式】
-        普通聊天时不要像老师、客服、咨询师那样解释、总结或给建议。除非用户明确要求详细分析、方案、代码或提示词，否则只接一个自然的小反应、态度或简短观点。避免“首先/其次/最后”“总结一下”“我建议你可以”这类模板化表达。
+        普通聊天时不要像老师、客服、咨询师那样解释、总结或给建议。除非用户明确要求详细分析、方案、代码或提示词，否则只接一个自然的小反应、态度或简短观点。避免"首先/其次/最后""总结一下""我建议你可以"这类模板化表达。
 
         【回复长度策略】
         根据用户上一条消息的信息量调整回复长度。
         默认聊天保持短句和少量气泡，像真实聊天，不写成教程、报告或列表。
         不要默认解释背景原因，不要默认总结对方的话，不要每轮都以问题结尾。
         只有用户明确要求详细、分析、方案、代码、提示词或完整解释时才允许更长。
-        \(specific)
+        \(specific)\n\(lengthNote)
         """
     }
 
@@ -149,7 +170,8 @@ struct ContextBuilder: Sendable {
         manualMemories: [MemoryItem] = [],
         worldBookEntries: [WorldBookEntry] = [],
         recentUserMessages: [ChatMessage] = [],
-        allowsNarrationBlocks: Bool = false
+        allowsNarrationBlocks: Bool = false,
+        replyLengthLevel: ReplyLengthLevel = .normal
     ) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
@@ -271,7 +293,7 @@ struct ContextBuilder: Sendable {
         // 回复长度策略：根据上一条用户消息信息量动态调整
         let lastUserMsg = recentUserMessages.last
         let signal = classifyUserReplySignal(lastUserMsg)
-        prompt += "\n\n" + buildReplyLengthPolicy(for: signal)
+        prompt += "\n\n" + buildReplyLengthPolicy(for: signal, lengthLevel: replyLengthLevel)
 
         // 末尾硬边界摘要：利用 recency bias 兜底，防止动态内容覆盖真实感边界
         prompt += """
@@ -290,7 +312,8 @@ struct ContextBuilder: Sendable {
         characterSupplement: String? = nil,
         manualMemories: [MemoryItem] = [],
         worldBookEntries: [WorldBookEntry] = [],
-        allowsNarrationBlocks: Bool = false
+        allowsNarrationBlocks: Bool = false,
+        replyLengthLevel: ReplyLengthLevel = .normal
     ) -> [ChatRequestMessage] {
         let effective = recentMessages
             .filter { $0.status == .sent && $0.role != .system }
@@ -309,7 +332,8 @@ struct ContextBuilder: Sendable {
                 manualMemories: manualMemories,
                 worldBookEntries: worldBookEntries,
                 recentUserMessages: recentUserMessages,
-                allowsNarrationBlocks: allowsNarrationBlocks
+                allowsNarrationBlocks: allowsNarrationBlocks,
+                replyLengthLevel: replyLengthLevel
             )
         )
 

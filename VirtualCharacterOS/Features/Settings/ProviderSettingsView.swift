@@ -117,9 +117,16 @@ struct ProviderSettingsView: View {
 
             Section {
                 Toggle("显示动作 / 心理旁白", isOn: $viewModel.allowsNarrationBlocks)
-                Text("关闭时会压制 *动作描写*、（心理活动）和旁白格式；开启后会以居中半透明小字显示这类内容。")
+                Text("关闭时严格压制 *动作描写*、（心理活动）和旁白格式；开启后聊天与旁白分段输出，旁白以居中半透明小字显示。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Picker("回复长度", selection: $viewModel.replyLengthLevel) {
+                    Text("简短").tag(ContextBuilder.ReplyLengthLevel.short)
+                    Text("标准").tag(ContextBuilder.ReplyLengthLevel.normal)
+                    Text("详细").tag(ContextBuilder.ReplyLengthLevel.long)
+                }
+                .pickerStyle(.segmented)
             } header: {
                 Text("聊天显示")
             }
@@ -205,6 +212,9 @@ struct ProviderSettingsView: View {
             }
         }
         .onChange(of: viewModel.allowsNarrationBlocks) { _, _ in
+            viewModel.saveChatDisplaySettings()
+        }
+        .onChange(of: viewModel.replyLengthLevel) { _, _ in
             viewModel.saveChatDisplaySettings()
         }
     }

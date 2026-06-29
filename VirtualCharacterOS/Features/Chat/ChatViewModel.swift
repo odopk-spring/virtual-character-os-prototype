@@ -305,6 +305,7 @@ final class ChatViewModel {
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()
             let allowsNarrationBlocks = Self.readAllowsNarrationBlocks()
+            let replyLengthLevel = Self.readReplyLengthLevel()
             let replySignal = contextBuilder.replySignal(
                 for: branchMessages.last(where: { $0.role == .user && $0.status == .sent })
             )
@@ -313,7 +314,8 @@ final class ChatViewModel {
                 characterSupplement: supplement,
                 manualMemories: memories,
                 worldBookEntries: worldBook,
-                allowsNarrationBlocks: allowsNarrationBlocks
+                allowsNarrationBlocks: allowsNarrationBlocks,
+                replyLengthLevel: replyLengthLevel
             )
 
             #if DEBUG
@@ -834,6 +836,11 @@ final class ChatViewModel {
 
     static func readAllowsNarrationBlocks() -> Bool {
         UserDefaults.standard.bool(forKey: ChatNarrationFormatter.settingsKey)
+    }
+
+    static func readReplyLengthLevel() -> ContextBuilder.ReplyLengthLevel {
+        let raw = UserDefaults.standard.string(forKey: "ChatSettings.replyLengthLevel") ?? ""
+        return ContextBuilder.ReplyLengthLevel(rawValue: raw) ?? .normal
     }
 
     /// 生成去重后的分支默认名。base 格式为 "分支·父名称"，同名已存在则追加数字后缀。

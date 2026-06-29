@@ -24,7 +24,12 @@ enum ChatNarrationFormatter {
             let inner = String(trimmed.dropFirst().dropLast())
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !inner.isEmpty, inner.count <= 80 else { continue }
+            // 去除旁白内可能带上的引号包裹
             return inner
+                .replacingOccurrences(of: "\"", with: "")
+                .replacingOccurrences(of: "\u{201C}", with: "") // "
+                .replacingOccurrences(of: "\u{201D}", with: "") // "
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         return nil

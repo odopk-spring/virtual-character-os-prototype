@@ -17,6 +17,7 @@ final class ProviderSettingsViewModel {
     var characterSupplement: String = ""
     var avatarImage: UIImage?
     var allowsNarrationBlocks: Bool
+    var replyLengthLevel: ContextBuilder.ReplyLengthLevel
 
     // MARK: - 内部依赖
 
@@ -38,6 +39,8 @@ final class ProviderSettingsViewModel {
         self.characterSupplement = defaults.string(forKey: Self.characterSupplementKey) ?? ""
         self.avatarImage = AvatarStore.loadImage()
         self.allowsNarrationBlocks = defaults.bool(forKey: ChatNarrationFormatter.settingsKey)
+        let levelRaw = defaults.string(forKey: Self.replyLengthLevelKey) ?? ""
+        self.replyLengthLevel = ContextBuilder.ReplyLengthLevel(rawValue: levelRaw) ?? .normal
 
         // 检查 Keychain 是否已有 Key
         refreshKeyStatus()
@@ -91,6 +94,7 @@ final class ProviderSettingsViewModel {
 
     func saveChatDisplaySettings() {
         UserDefaults.standard.set(allowsNarrationBlocks, forKey: ChatNarrationFormatter.settingsKey)
+        UserDefaults.standard.set(replyLengthLevel.rawValue, forKey: Self.replyLengthLevelKey)
     }
 
     // MARK: - 角色头像
@@ -139,4 +143,5 @@ final class ProviderSettingsViewModel {
     private static let modelNameKey = "ProviderSettings.modelName"
     private static let characterSupplementKey = "CharacterSettings.supplement"
     private static let avatarFilenameKey = "CharacterSettings.avatarFilename"
+    private static let replyLengthLevelKey = "ChatSettings.replyLengthLevel"
 }
