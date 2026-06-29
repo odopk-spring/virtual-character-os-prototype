@@ -120,13 +120,14 @@ final class ChatViewModel {
             try? branchStore.updateBranch(old)
         }
 
-        // 创建新分支
-        let dateStr = DateFormatter()
-        dateStr.locale = Locale(identifier: "zh_CN")
-        dateStr.dateFormat = "MM-dd HH:mm"
+        // 创建新分支（命名规则：分支·父分支名称）
+        let parentTitle = parentBranch?.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseTitle = "分支·\(parentTitle?.isEmpty == false ? parentTitle! : "主线")"
+        let branchTitle = Self.makeUniqueBranchTitle(base: baseTitle, existing: allBranches)
+
         let newBranch = ConversationBranch(
             id: UUID(),
-            title: "分支 \(dateStr.string(from: now))",
+            title: branchTitle,
             rootMessageID: message.id,
             parentBranchID: activeBranchID,
             createdAt: now,
@@ -597,6 +598,18 @@ final class ChatViewModel {
     static func readWorldBookEntries() -> [WorldBookEntry] {
         guard let store = try? FileWorldBookStore() else { return [] }
         return (try? store.loadEntries()) ?? []
+    }
+
+    /// 生成去重后的分支默认名。base 格式为 "分支·父名称"，同名已存在则追加数字后缀。
+    static func makeUniqueBranchTitle(base: String, existing: [ConversationBranch]) -> String {
+        let trimmed = String(base.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
+        let occupied = Set(existing.map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) })
+        guard occupied.contains(trimmed) else { return trimmed }
+        for i in 2...99 {
+            let candidate = "\(trimmed) \(i)"
+            if !occupied.contains(candidate) { return candidate }
+        }
+        return trimmed // fallback
     }
 
     /// 读取 active branch 可见消息（含继承历史 + 自有消息）。

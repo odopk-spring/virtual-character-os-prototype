@@ -15,6 +15,7 @@ struct BranchSwitcherView: View {
     @State private var renamingBranchID: UUID?
     @State private var renameText: String = ""
     @State private var deleteTarget: UUID?
+    @State private var blockReason: String?
 
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -72,13 +73,12 @@ struct BranchSwitcherView: View {
                                 }
                                 .tint(.blue)
 
-                                if !isActive && branch.id != ConversationBranch.mainBranchID {
-                                    Button("删除", role: .destructive) {
-                                        if childBranchIDs.contains(branch.id) {
-                                            // 有子分支依赖 → 跳过
-                                        } else {
-                                            deleteTarget = branch.id
-                                        }
+                                Button("删除", role: .destructive) {
+                                    let reason = deleteBlockReason(for: branch)
+                                    if let reason {
+                                        blockReason = reason
+                                    } else {
+                                        deleteTarget = branch.id
                                     }
                                 }
                             }
@@ -102,6 +102,28 @@ struct BranchSwitcherView: View {
         } message: {
             Text("这只会删除分支入口，不会清除底层消息。该操作暂不可撤销。")
         }
+        .alert("无法删除", isPresented: .init(
+            get: { blockReason != nil },
+            set: { if !$0 { blockReason = nil } }
+        )) {
+            Button("知道了", role: .cancel) { blockReason = nil }
+        } message: {
+            Text(blockReason ?? "")
+        }
+    }
+
+    /// 判断分支是否可删除，返回 nil 表示可删，否则返回阻断原因。
+    private func deleteBlockReason(for branch: ConversationBranch) -> String? {
+        if branch.id == activeBranchID {
+            return "当前正在使用的分支不能删除，请先切换到其他分支。"
+        }
+        if branch.id == ConversationBranch.mainBranchID {
+            return "主线不能删除。"
+        }
+        if childBranchIDs.contains(branch.id) {
+            return "该分支仍有子分支依赖，不能删除。"
+        }
+        return nil
     }
 }
 
