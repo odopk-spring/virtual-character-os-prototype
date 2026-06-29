@@ -14,18 +14,86 @@ struct ContextBuilder: Sendable {
         static let maxMemoryContentChars = 300
         static let maxMemorySectionChars = 1500
         static let maxCharacterSupplementChars = 1000
-        // WorldBook
-        static let maxWorldBookEntries = 5
+        // WorldBook — rule/triggered 分池，共享字符预算
+        static let maxWorldBookRuleEntries = 4
+        static let maxTriggeredWorldBookEntries = 3
+        static let maxWorldBookTotalEntries = 7
         static let maxWorldBookTitleChars = 80
         static let maxWorldBookContentChars = 500
         static let maxWorldBookKeywordsShown = 5
-        static let maxWorldBookSectionChars = 1800
+        static let maxWorldBookSectionChars = 2200
         static let maxWorldBookRecentUserMessages = 6
-        static let maxAlwaysOnRuleWorldBookEntries = 4
     }
 
     init(maxRecentMessages: Int = Budget.maxRecentMessages) {
         self.maxRecentMessages = maxRecentMessages
+    }
+
+    // MARK: - Reply Signal Strength
+
+    /// 用户输入信息量信号。
+    enum ReplySignalStrength: String {
+        case low
+        case light
+        case normal
+        case deep
+    }
+
+    /// 根据上一条用户消息分类信息量。
+    private func classifyUserReplySignal(_ message: ChatMessage?) -> ReplySignalStrength {
+        guard let message else { return .normal }
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .low }
+
+        // deep：明确要求详细/分析/方案/提示词/代码/审计等
+        let deepMarkers = ["详细", "完整", "分析", "解释", "对比", "方案", "提示词",
+                           "规范", "步骤", "代码", "架构", "设计", "审计", "报告", "总结",
+                           "PRD", "写一个", "帮我写", "教我", "怎么做", "怎么实现"]
+        if deepMarkers.contains(where: { trimmed.contains($0) }) || trimmed.count >= 80 {
+            return .deep
+        }
+
+        // low：极低信息量
+        if trimmed.count <= 2 && !trimmed.contains("？") && !trimmed.contains("?") {
+            return .low
+        }
+        let lowPhrases = ["嗯", "哦", "啊", "呃", "额", "哈哈", "哈哈哈", "行", "好",
+                          "好吧", "可以", "算了", "6", "？", "。", "...", "……",
+                          "不是", "没事", "还行", "没", "对", "是", "懂", "嗯嗯"]
+        if lowPhrases.contains(trimmed) { return .low }
+
+        // light：轻量闲聊
+        if trimmed.count <= 10 && !trimmed.contains("？") && !trimmed.contains("?") {
+            return .light
+        }
+        let lightMarkers = ["累了", "困了", "算了", "不想", "还行吧", "刚到", "就这样",
+                            "不知道", "无所谓", "随便"]
+        if lightMarkers.contains(where: { trimmed.contains($0) }) { return .light }
+
+        return .normal
+    }
+
+    /// 根据信号强度生成回复长度策略 prompt。
+    private func buildReplyLengthPolicy(for signal: ReplySignalStrength) -> String {
+        let specific: String
+        switch signal {
+        case .low:
+            specific = "当前用户上一条消息信息量很低：请只给极短自然回应，0-1句即可，不解释、不追问、不总结。"
+        case .light:
+            specific = "当前用户上一条消息偏轻量闲聊：请短回应，接住语气即可，不展开分析。"
+        case .normal:
+            specific = "当前用户上一条消息为普通对话：直接回应，默认1-2个短气泡，不要长篇。"
+        case .deep:
+            specific = "当前用户明确要求详细帮助：可以更完整地回应，但仍避免无意义扩写和废话。"
+        }
+        return """
+        【回复长度策略】
+        根据用户上一条消息的信息量调整回复长度。
+        如果用户只是发语气词、符号、表情或没有明确问题，只做极短自然回应。
+        默认聊天保持短句和少量气泡，像真实聊天，不写成教程、报告或列表。
+        只有用户明确要求时才允许更长更结构化的回复。
+        \(specific)
+        """
     }
 
     // MARK: - Public API
@@ -155,6 +223,11 @@ struct ContextBuilder: Sendable {
             \(worldBookHint)
             """
         }
+
+        // 回复长度策略：根据上一条用户消息信息量动态调整
+        let lastUserMsg = recentUserMessages.last
+        let signal = classifyUserReplySignal(lastUserMsg)
+        prompt += "\n\n" + buildReplyLengthPolicy(for: signal)
 
         // 末尾硬边界摘要：利用 recency bias 兜底，防止动态内容覆盖真实感边界
         prompt += """
@@ -316,7 +389,7 @@ struct ContextBuilder: Sendable {
         var count = 0
 
         for item in selected {
-            guard count < Budget.maxWorldBookEntries else { break }
+            guard count < Budget.maxWorldBookTotalEntries else { break }
 
             let title = String(item.entry.title.trimmingCharacters(in: .whitespacesAndNewlines)
                                 .prefix(Budget.maxWorldBookTitleChars))
@@ -340,6 +413,8 @@ struct ContextBuilder: Sendable {
         return header + body
     }
 
+    /// rule (always-on) 和 triggered (关键词匹配) 分池，互不挤压。
+    /// 合并后受 maxWorldBookTotalEntries 和 maxWorldBookSectionChars 限制。
     private func selectWorldBookEntries(
         from entries: [WorldBookEntry],
         recentUserMessages: [ChatMessage]
@@ -347,16 +422,15 @@ struct ContextBuilder: Sendable {
         let enabled = entries.filter { $0.isEnabled }
         guard !enabled.isEmpty else { return [] }
 
-        let ruleLimit = min(Budget.maxAlwaysOnRuleWorldBookEntries, Budget.maxWorldBookEntries)
-        let ruleSelections = alwaysOnRuleEntries(from: enabled, limit: ruleLimit)
-        let remainingSlots = max(Budget.maxWorldBookEntries - ruleSelections.count, 0)
+        let ruleSelections = alwaysOnRuleEntries(from: enabled, limit: Budget.maxWorldBookRuleEntries)
         let triggeredSelections = triggeredWorldBookEntries(
             from: enabled,
             recentUserMessages: recentUserMessages,
-            limit: remainingSlots
+            limit: Budget.maxTriggeredWorldBookEntries
         )
 
-        return mergeDeduplicatedWorldBookSelections(ruleSelections + triggeredSelections)
+        let merged = mergeDeduplicatedWorldBookSelections(ruleSelections + triggeredSelections)
+        return Array(merged.prefix(Budget.maxWorldBookTotalEntries))
     }
 
     private func alwaysOnRuleEntries(from entries: [WorldBookEntry], limit: Int) -> [WorldBookSelection] {
@@ -445,8 +519,11 @@ struct ContextBuilder: Sendable {
         let characterSupplementChars: Int
         let memorySectionChars: Int
         let worldBookInputCount: Int
+        let worldBookRuleCount: Int
+        let worldBookTriggeredCount: Int
         let worldBookInjectedCount: Int
         let worldBookSectionChars: Int
+        let replySignal: ReplySignalStrength
         let systemPromptTotalChars: Int
     }
 
@@ -460,6 +537,9 @@ struct ContextBuilder: Sendable {
     ) -> Summary {
         let supplementChars = characterSupplement?.count ?? 0
         let userMsgs = recentMessages.filter { $0.role == .user }
+        let lastUserMsg = userMsgs.last
+        let signal = classifyUserReplySignal(lastUserMsg)
+
         let systemPrompt = buildSystemPrompt(
             character: .defaultProfile(),
             characterSupplement: characterSupplement,
@@ -483,12 +563,14 @@ struct ContextBuilder: Sendable {
             let enabled = worldBookEntries.filter { $0.isEnabled }
             guard !enabled.isEmpty else { return 0 }
             var c = 0
-            for i in 1...Budget.maxWorldBookEntries {
+            for i in 1...Budget.maxWorldBookTotalEntries {
                 if systemPrompt.contains("\(i). [") && systemPrompt.contains("｜P") { c += 1 }
-                // WorldBook entries have "｜P" marker; memory entries don't
             }
             return c
         }()
+
+        let enabledEntries = worldBookEntries.filter { $0.isEnabled }
+        let wbRuleEntries = enabledEntries.filter { $0.category == .rule }.count
 
         return Summary(
             recentMessageCount: recentMessages.count,
@@ -498,9 +580,12 @@ struct ContextBuilder: Sendable {
             memorySectionChars: systemPrompt.components(separatedBy: "【长期记忆】").last?
                 .components(separatedBy: "【").first?.count ?? 0,
             worldBookInputCount: worldBookEntries.count,
+            worldBookRuleCount: wbRuleEntries,
+            worldBookTriggeredCount: enabledEntries.count - wbRuleEntries,
             worldBookInjectedCount: wbInjected,
             worldBookSectionChars: systemPrompt.components(separatedBy: "【世界书】").last?
                 .components(separatedBy: "【").first?.count ?? 0,
+            replySignal: signal,
             systemPromptTotalChars: systemPrompt.count
         )
     }

@@ -247,7 +247,7 @@ final class ChatViewModel {
                 characterSupplement: supplement,
                 worldBookEntries: worldBook
             )
-            print("[ContextBudget] msgs=\(summary.recentMessageCount) mems=\(summary.manualMemoryInjectedCount)/\(summary.manualMemoryInputCount) wb=\(summary.worldBookInjectedCount)/\(summary.worldBookInputCount) wbChars=\(summary.worldBookSectionChars) sup=\(summary.characterSupplementChars) memChars=\(summary.memorySectionChars) prompt=\(summary.systemPromptTotalChars)")
+            print("[ContextBudget] msgs=\(summary.recentMessageCount) mems=\(summary.manualMemoryInjectedCount)/\(summary.manualMemoryInputCount) wbRules=\(summary.worldBookRuleCount) wbTrig=\(summary.worldBookTriggeredCount) wb=\(summary.worldBookInjectedCount)/\(summary.worldBookInputCount) wbChars=\(summary.worldBookSectionChars) sup=\(summary.characterSupplementChars) memChars=\(summary.memorySectionChars) signal=\(summary.replySignal.rawValue) prompt=\(summary.systemPromptTotalChars)")
             #endif
 
             let config = Self.readConfig()
