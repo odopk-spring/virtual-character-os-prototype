@@ -445,10 +445,36 @@ final class ChatViewModel {
                 : [segment]
         }
         let merged = mergeTinyReplyFragments(sentenceSegments)
-        let maxBubbles = maxBubbleCount(for: replySignal)
-        let limited = limitReplySegments(merged, maxCount: maxBubbles)
+
+        // 旁白不计入聊天气泡配额，单独限制
+        var chatSegments: [String] = []
+        var narrationSegments: [String] = []
+        for seg in merged {
+            if ChatNarrationFormatter.narrationText(from: seg) != nil {
+                narrationSegments.append(seg)
+            } else {
+                chatSegments.append(seg)
+            }
+        }
+
+        let maxChat = maxBubbleCount(for: replySignal)
+        let maxNarr = 4
+        let limitedChat = limitReplySegments(chatSegments, maxCount: maxChat)
+        let limitedNarr = limitReplySegments(narrationSegments, maxCount: maxNarr)
+
+        // 按原始顺序交错合并
+        var result: [String] = []
+        var ci = 0, ni = 0
+        for seg in merged {
+            if ChatNarrationFormatter.narrationText(from: seg) != nil {
+                if ni < limitedNarr.count { result.append(limitedNarr[ni]); ni += 1 }
+            } else {
+                if ci < limitedChat.count { result.append(limitedChat[ci]); ci += 1 }
+            }
+        }
+
         let questionSuppressed = dropGenericTrailingQuestionIfNeeded(
-            limited,
+            result,
             replySignal: replySignal
         )
         let tutorialSuppressed = dropGenericTutorialTailIfNeeded(
