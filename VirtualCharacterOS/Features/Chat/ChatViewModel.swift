@@ -259,7 +259,7 @@ final class ChatViewModel {
 
             // 第一条 chunk 复用占位消息（带 branchID 保护）
             let firstChunk = chunks[0]
-            try await Task.sleep(nanoseconds: assistantBubbleDelay(for: firstChunk, index: 0))
+            try await Task.sleep(nanoseconds: assistantBubbleDelay(for: firstChunk, index: 0, total: chunks.count))
             let first = ChatMessage(id: assistantID, role: .assistant,
                                     content: firstChunk, status: .sent,
                                     branchID: branchID)
@@ -281,7 +281,7 @@ final class ChatViewModel {
                     messages.append(bubble)
                 }
 
-                try await Task.sleep(nanoseconds: assistantBubbleDelay(for: chunk, index: i))
+                try await Task.sleep(nanoseconds: assistantBubbleDelay(for: chunk, index: i, total: chunks.count))
 
                 let updated = ChatMessage(id: bubbleID, role: .assistant,
                                           content: chunk, status: .sent,
@@ -319,11 +319,14 @@ final class ChatViewModel {
         }
     }
 
-    /// 分气泡投放延迟：首条略快，后续略慢；短句快、长句稍慢。
-    private func assistantBubbleDelay(for text: String, index: Int) -> UInt64 {
-        let base = index == 0 ? 0.35 : 0.45
-        let lengthFactor = Double(text.count) / 10.0 * 0.08
-        let seconds = min(max(base + lengthFactor, 0.35), 1.6)
+    /// 分气泡投放延迟：首条带思考停顿，后续按文本长度模拟更接近真人的输入节奏。
+    private func assistantBubbleDelay(for text: String, index: Int, total: Int) -> UInt64 {
+        let base = index == 0 ? 0.8 : 0.9
+        let lengthCap = index == 0 ? 1.4 : 1.9
+        let totalPadding = total == 1 ? 0.0 : min(Double(total - 1) * 0.08, 0.24)
+        let lengthFactor = min(Double(text.count) * 0.035 + totalPadding, lengthCap)
+        let maxSeconds = index == 0 ? 2.2 : 2.8
+        let seconds = min(max(base + lengthFactor, 0.6), maxSeconds)
         return UInt64(seconds * 1_000_000_000)
     }
 
@@ -331,52 +334,236 @@ final class ChatViewModel {
         UInt64(0.22 * 1_000_000_000)
     }
 
-    /// 将模型回复拆成最多 3 个气泡。短文本不拆分。
+    /// 将模型回复拆成 1-4 个气泡；不强制多气泡，优先保留自然语义边界。
     private func splitAssistantReply(_ text: String) -> [String] {
-        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = normalizeAssistantReply(text)
+        guard !cleaned.isEmpty else { return [cleaned] }
 
-        // 合并连续换行
-        while cleaned.contains("\n\n\n") {
-            cleaned = cleaned.replacingOccurrences(of: "\n\n\n", with: "\n\n")
-        }
+        let newlineSegments = splitByNewlineBlocks(cleaned)
+        let semanticSegments = newlineSegments.flatMap { splitBySemanticBreakpoints($0) }
+        let sentenceSegments = semanticSegments.flatMap { splitLongSegmentBySentencePunctuation($0) }
+        let merged = mergeTinyReplyFragments(sentenceSegments)
+        let limited = limitReplySegments(merged, maxCount: 4)
 
-        // 短文本直接返回单气泡
-        if cleaned.count <= 40 || !cleaned.contains("\n") {
-            return [cleaned]
-        }
-
-        // 按空行拆分
-        let paragraphs = cleaned
-            .components(separatedBy: "\n\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        // 段落数 ≤3 且含有效换行 → 直接返回（最多 3 段）
-        if paragraphs.count > 1 && paragraphs.count <= 3 {
-            return paragraphs.map { collapseLines($0) }
-        }
-
-        // 按换行拆
-        let lines = cleaned
-            .components(separatedBy: "\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        if lines.count <= 3 {
-            return lines.map { collapseLines($0) }
-        }
-
-        // 折半合并：前一半 → chunk 1，后一半 → chunk 2
-        let mid = lines.count / 2
-        let first = lines[0..<mid].joined(separator: "\n")
-        let second = lines[mid...].joined(separator: "\n")
-        return [collapseLines(first), collapseLines(second)]
+        return limited.isEmpty ? [cleaned] : limited
     }
 
     /// 去掉文本内部的换行，只保留单行气泡。
     private func collapseLines(_ text: String) -> String {
         text.replacingOccurrences(of: "\n", with: "")
     }
+
+    private func normalizeAssistantReply(_ text: String) -> String {
+        var cleaned = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        while cleaned.contains("\n\n\n") {
+            cleaned = cleaned.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+        return cleaned
+    }
+
+    private func splitByNewlineBlocks(_ text: String) -> [String] {
+        guard text.contains("\n") else { return [text] }
+
+        let paragraphs = text
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if paragraphs.count > 1 {
+            return paragraphs.map { collapseLines($0) }
+        }
+
+        let lines = text
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard lines.count > 1 else { return [collapseLines(text)] }
+        return lines.map { collapseLines($0) }
+    }
+
+    private func splitBySemanticBreakpoints(_ text: String) -> [String] {
+        var segments = [text]
+        var pass = 0
+        var didSplit = true
+
+        while didSplit && pass < 3 {
+            didSplit = false
+            pass += 1
+
+            var next: [String] = []
+            for segment in segments {
+                if let split = semanticSplitCandidate(segment) {
+                    next.append(contentsOf: split)
+                    didSplit = true
+                } else {
+                    next.append(segment)
+                }
+            }
+            segments = next
+        }
+
+        return segments
+    }
+
+    private func semanticSplitCandidate(_ text: String) -> [String]? {
+        guard text.count >= 28 else { return nil }
+
+        for keyword in Self.semanticReplyBreakpoints {
+            var searchRange = text.startIndex..<text.endIndex
+            while let range = text.range(of: keyword, range: searchRange) {
+                let before = String(text[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let after = String(text[range.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if shouldSplitSemanticSegment(keyword: keyword, before: before, after: after) {
+                    return [before, after]
+                }
+
+                guard range.upperBound < text.endIndex else { break }
+                searchRange = range.upperBound..<text.endIndex
+            }
+        }
+
+        return nil
+    }
+
+    private func shouldSplitSemanticSegment(keyword: String, before: String, after: String) -> Bool {
+        guard !before.isEmpty, !after.isEmpty else { return false }
+        guard !Self.connectorOnlyFragments.contains(before),
+              !Self.connectorOnlyFragments.contains(after) else {
+            return false
+        }
+
+        if keyword == "那" {
+            return before.count >= 18 && after.count >= 12
+        }
+
+        let minBefore = ["我刚才", "下次"].contains(keyword) ? 6 : 8
+        let minAfter = 10
+        return before.count >= minBefore && after.count >= minAfter
+    }
+
+    private func splitLongSegmentBySentencePunctuation(_ text: String) -> [String] {
+        guard text.count > 44 else { return [text] }
+
+        var result: [String] = []
+        var current = ""
+
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
+            current.append(character)
+            let nextIndex = text.index(after: index)
+            if character == "…",
+               nextIndex < text.endIndex,
+               text[nextIndex] == "…" {
+                index = nextIndex
+                continue
+            }
+
+            if Self.strongSentencePunctuation.contains(character) {
+                let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    result.append(trimmed)
+                }
+                current = ""
+            }
+            index = nextIndex
+        }
+
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty {
+            result.append(tail)
+        }
+
+        return result.count > 1 ? result : [text]
+    }
+
+    private func mergeTinyReplyFragments(_ segments: [String]) -> [String] {
+        let cleaned = segments
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !cleaned.isEmpty else { return [] }
+
+        var merged: [String] = []
+        var index = 0
+
+        while index < cleaned.count {
+            let segment = cleaned[index]
+
+            if shouldMergeWithNeighbor(segment),
+               index + 1 < cleaned.count {
+                let combined = segment + cleaned[index + 1]
+                merged.append(combined)
+                index += 2
+                continue
+            }
+
+            if shouldMergeWithNeighbor(segment),
+               let last = merged.popLast() {
+                merged.append(last + segment)
+                index += 1
+                continue
+            }
+
+            if let last = merged.last,
+               shouldAvoidConsecutiveShortBubbles(last, segment) {
+                merged[merged.count - 1] = last + segment
+            } else {
+                merged.append(segment)
+            }
+            index += 1
+        }
+
+        return merged
+    }
+
+    private func shouldMergeWithNeighbor(_ text: String) -> Bool {
+        if Self.connectorOnlyFragments.contains(text) {
+            return true
+        }
+        if Self.allowedShortStandaloneReplies.contains(text) {
+            return false
+        }
+        return text.count < 6
+    }
+
+    private func shouldAvoidConsecutiveShortBubbles(_ left: String, _ right: String) -> Bool {
+        left.count <= 6 && right.count <= 6 && (left + right).count <= 14
+    }
+
+    private func limitReplySegments(_ segments: [String], maxCount: Int) -> [String] {
+        guard segments.count > maxCount else { return segments }
+
+        var limited = Array(segments.prefix(maxCount - 1))
+        let tail = segments.dropFirst(maxCount - 1).joined()
+        if !tail.isEmpty {
+            limited.append(tail)
+        }
+        return limited
+    }
+
+    private static let semanticReplyBreakpoints = [
+        "我刚才", "不过", "但是", "而且", "不然", "所以", "下次",
+        "其实", "还有", "然后", "反正", "算了", "那"
+    ]
+
+    private static let strongSentencePunctuation: Set<Character> = [
+        "。", "！", "？", "；", "…", "~"
+    ]
+
+    private static let connectorOnlyFragments: Set<String> = [
+        "不过", "但是", "而且", "不然", "所以", "那", "其实", "还有", "然后", "反正", "算了"
+    ]
+
+    private static let allowedShortStandaloneReplies: Set<String> = [
+        "嗯", "好", "可以", "我懂", "行", "对", "没用"
+    ]
 
     private static func readConfig() -> ProviderConfig {
         let d = UserDefaults.standard
