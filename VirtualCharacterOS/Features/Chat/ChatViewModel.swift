@@ -97,9 +97,7 @@ final class ChatViewModel {
 
     func loadMessages() {
         do {
-            let visible = try loadVisibleMessagesForActiveBranch()
-            let hiddenIDs = (try? hiddenStore.loadHiddenMessageIDs(branchID: activeBranchID)) ?? []
-            messages = visible.filter { !hiddenIDs.contains($0.id) }
+            messages = try filteredVisibleMessages(for: activeBranchID)
         } catch {
             messages = []; errorMessage = "加载消息失败"
         }
@@ -199,12 +197,31 @@ final class ChatViewModel {
             return
         }
 
+        // Fork-time hidden inheritance: 子分支继承父分支中属于继承历史范围的 hidden IDs
+        inheritHiddenStateForChild(childBranchID: newBranch.id, parentBranchID: activeBranchID, rootMessageCreatedAt: message.createdAt)
+
         // 切换 active branch
         activeBranchID = newBranch.id
         ActiveBranchStore.setActiveBranchID(newBranch.id)
 
         // 重新加载可见消息
         loadMessages()
+    }
+
+    /// 子分支继承父分支在 fork 时刻、且属于子分支可见历史范围的 hidden IDs。
+    private func inheritHiddenStateForChild(childBranchID: UUID, parentBranchID: UUID, rootMessageCreatedAt: Date) {
+        guard let parentHiddenIDs = try? hiddenStore.loadHiddenMessageIDs(branchID: parentBranchID),
+              !parentHiddenIDs.isEmpty else { return }
+
+        // 只继承 rootMessageCreatedAt 及之前的父分支消息（子分支可见历史范围）
+        let allMessages = (try? store.loadMessages()) ?? []
+        let inheritableIDs = Set(allMessages
+            .filter { $0.branchID == parentBranchID && $0.createdAt <= rootMessageCreatedAt }
+            .map { $0.id })
+
+        let childHiddenIDs = parentHiddenIDs.intersection(inheritableIDs)
+        guard !childHiddenIDs.isEmpty else { return }
+        try? hiddenStore.hideMessages(childHiddenIDs, branchID: childBranchID)
     }
 
     // MARK: - Branch Switcher
@@ -283,9 +300,7 @@ final class ChatViewModel {
 
     private func callLLM(assistantID: UUID, branchID: UUID) async {
         do {
-            let visibleMessages = try loadVisibleMessages(for: branchID)
-            let hiddenIDs = (try? hiddenStore.loadHiddenMessageIDs(branchID: branchID)) ?? []
-            let branchMessages = visibleMessages.filter { !hiddenIDs.contains($0.id) }
+            let branchMessages = try filteredVisibleMessages(for: branchID)
             let supplement = Self.readCharacterSupplement()
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()
@@ -665,6 +680,14 @@ final class ChatViewModel {
             if !occupied.contains(candidate) { return candidate }
         }
         return trimmed // fallback
+    }
+
+    /// 统一过滤：BranchMessageResolver visible - hidden = 最终可见消息。
+    /// ChatView.display / ContextBuilder.input / HistoryBrowser 使用同一逻辑。
+    func filteredVisibleMessages(for branchID: UUID) throws -> [ChatMessage] {
+        let visible = try loadVisibleMessages(for: branchID)
+        let hiddenIDs = (try? hiddenStore.loadHiddenMessageIDs(branchID: branchID)) ?? []
+        return visible.filter { !hiddenIDs.contains($0.id) && $0.status == .sent }
     }
 
     /// 读取 active branch 可见消息（含继承历史 + 自有消息）。

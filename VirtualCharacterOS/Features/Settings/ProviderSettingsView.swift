@@ -4,6 +4,7 @@ import PhotosUI
 struct ProviderSettingsView: View {
     @State private var viewModel = ProviderSettingsViewModel()
     @State private var selectedPhotoItem: PhotosPickerItem?
+    var onHistoryTap: (() -> Void)? = nil
 
     var body: some View {
         Form {
@@ -110,6 +111,22 @@ struct ProviderSettingsView: View {
                 }
             } header: {
                 Text("角色头像")
+            }
+
+            // MARK: - Chat History
+
+            Section {
+                Button {
+                    onHistoryTap?()
+                } label: {
+                    Label("聊天记录", systemImage: "clock.arrow.circlepath")
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } header: {
+                Text("聊天记录")
             }
 
             // MARK: - Character Profile

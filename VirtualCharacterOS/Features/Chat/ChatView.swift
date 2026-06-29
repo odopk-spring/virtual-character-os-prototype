@@ -4,6 +4,7 @@ struct ChatView: View {
     @State private var viewModel: ChatViewModel
     @State private var showSettings: Bool = false
     @State private var showBranchSwitcher: Bool = false
+    @State private var showHistoryBrowser: Bool = false
     @State private var characterAvatar: UIImage?
     @State private var restoreTargetMessage: ChatMessage?
     @State private var showHideConfirm: Bool = false
@@ -84,7 +85,22 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
-                ProviderSettingsView()
+                ProviderSettingsView(
+                    onHistoryTap: {
+                        showSettings = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            showHistoryBrowser = true
+                        }
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showHistoryBrowser) {
+            NavigationStack {
+                ChatHistoryDateBrowserView(
+                    messages: (try? viewModel.filteredVisibleMessages(for: viewModel.activeBranchID)) ?? [],
+                    branchName: viewModel.character.name
+                )
             }
         }
         .sheet(isPresented: $showBranchSwitcher) {

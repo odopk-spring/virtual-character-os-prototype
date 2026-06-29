@@ -42,6 +42,7 @@
 		A4FF66CE79EA83777B37C7FE /* CharacterEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C526239A0816DE7BB8E2F0D0 /* CharacterEditorView.swift */; };
 		A58E5AB4768296F7766F61E2 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C897ACCB7CA500A2B5EE134B /* ChatView.swift */; };
 		BA4B3A80B173A33DF01802C4 /* ChatBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 277B0506560E6826AFAB4023 /* ChatBubbleView.swift */; };
+		BBFA70231EBC69703DD5B9F3 /* ChatHistoryDateBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4CAD42D366907A9EF8B41C /* ChatHistoryDateBrowserView.swift */; };
 		BEDCE5DED82523C39DA49ABD /* WorldBookListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3CD4244D24849009AB6FDAB /* WorldBookListView.swift */; };
 		BFE7176DF85A3416182CA815 /* MemoryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944883631F30B9225D982A33 /* MemoryItem.swift */; };
 		C0636CE33C6FA1604CC75B35 /* OpenAICompatibleProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C058E49ADF89CD92E8D4914 /* OpenAICompatibleProvider.swift */; };
@@ -66,6 +67,7 @@
 		277B0506560E6826AFAB4023 /* ChatBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatBubbleView.swift; sourceTree = "<group>"; };
 		2C058E49ADF89CD92E8D4914 /* OpenAICompatibleProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleProvider.swift; sourceTree = "<group>"; };
 		38AAF8FF40454E276CCF6864 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
+		3A4CAD42D366907A9EF8B41C /* ChatHistoryDateBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatHistoryDateBrowserView.swift; sourceTree = "<group>"; };
 		3C10F2A0269BE44B28EA7F1D /* WorldBookKeywordSuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookKeywordSuggestionService.swift; sourceTree = "<group>"; };
 		3CC0182FEC1EC12F548E5401 /* ProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSettingsView.swift; sourceTree = "<group>"; };
 		3F8BDD8519B4A4CAA4E5E6CA /* MemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStore.swift; sourceTree = "<group>"; };
@@ -80,7 +82,7 @@
 		72E4C21E091DFAA1EFDF04A0 /* MemoryEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryEditorView.swift; sourceTree = "<group>"; };
 		73B10BD8A30440860DD85C2A /* MemoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModel.swift; sourceTree = "<group>"; };
 		76CD5308F3EAF6E6FC91823D /* WorldBookViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookViewModel.swift; sourceTree = "<group>"; };
-		779EA4D49B3AD9751245334D /* VirtualCharacterOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VirtualCharacterOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		779EA4D49B3AD9751245334D /* VirtualCharacterOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VirtualCharacterOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		782F068A6DA437CDE98DD6C3 /* default-character-avatar.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "default-character-avatar.jpg"; sourceTree = "<group>"; };
 		8437DD99399E35FCA6176BB6 /* BranchSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchSwitcherView.swift; sourceTree = "<group>"; };
 		8CA7FA6C3FE29788E6F219A9 /* VirtualCharacterOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualCharacterOSApp.swift; sourceTree = "<group>"; };
@@ -89,13 +91,13 @@
 		944883631F30B9225D982A33 /* MemoryItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryItem.swift; sourceTree = "<group>"; };
 		9DC5F850176E4A82544665FA /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
 		A41956785D6E22D905D11594 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
-		AFCD4C944EC5C4F5C86D7FEE /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		B0FA89E84CE07D3272D2D180 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		AFCD4C944EC5C4F5C86D7FEE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		B0FA89E84CE07D3272D2D180 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		B41E65121F5BC8222C87CDDE /* WorldBookStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookStore.swift; sourceTree = "<group>"; };
 		B95E8E79100894919B8A789E /* ChatUIStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatUIStyle.swift; sourceTree = "<group>"; };
 		BE222AC38DFA69411334A29E /* WorldBookEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookEditorView.swift; sourceTree = "<group>"; };
 		C06309B586291F75817FAD43 /* ConversationBranch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationBranch.swift; sourceTree = "<group>"; };
-		C2057BA36A628A4C8A2F49E0 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		C2057BA36A628A4C8A2F49E0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		C3CD4244D24849009AB6FDAB /* WorldBookListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldBookListView.swift; sourceTree = "<group>"; };
 		C526239A0816DE7BB8E2F0D0 /* CharacterEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterEditorView.swift; sourceTree = "<group>"; };
 		C897ACCB7CA500A2B5EE134B /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
@@ -117,6 +119,14 @@
 				204E839F289FA7C256A88BC7 /* Info.plist */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		08D4F1CC88F3DCBFADCA16D4 /* ChatHistory */ = {
+			isa = PBXGroup;
+			children = (
+				3A4CAD42D366907A9EF8B41C /* ChatHistoryDateBrowserView.swift */,
+			);
+			path = ChatHistory;
 			sourceTree = "<group>";
 		};
 		1357C996E272DAC4EC4002B2 /* Security */ = {
@@ -231,6 +241,7 @@
 			children = (
 				251E7B4155C2F9CCEDC344C0 /* Branches */,
 				AD783B02A2D3FCE7D97977DA /* Chat */,
+				08D4F1CC88F3DCBFADCA16D4 /* ChatHistory */,
 				7A23015AC039158A117CB33E /* Memory */,
 				AC2A3A3ABDDDB4652230D3C7 /* Settings */,
 				324346E493F6F30021ABBF85 /* WorldBook */,
@@ -332,6 +343,8 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 08CFE1947BA40BA5C1F3A01A /* Build configuration list for PBXProject "VirtualCharacterOS" */;
 			developmentRegion = en;
@@ -379,6 +392,7 @@
 				4591B0C3CE73786EDB51700F /* CharacterProfileStore.swift in Sources */,
 				3F312390B762D7AEB3254888 /* ChatBubbleShape.swift in Sources */,
 				BA4B3A80B173A33DF01802C4 /* ChatBubbleView.swift in Sources */,
+				BBFA70231EBC69703DD5B9F3 /* ChatHistoryDateBrowserView.swift in Sources */,
 				04580F86B76A14E597ABDE20 /* ChatInputBar.swift in Sources */,
 				7E4A5E29259E884390E64D66 /* ChatMessage.swift in Sources */,
 				DBA093FD9E99B08793CE3D72 /* ChatRequest.swift in Sources */,
@@ -425,7 +439,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = S3JGH6AWS9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = VirtualCharacterOS/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -502,7 +515,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = S3JGH6AWS9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = VirtualCharacterOS/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
