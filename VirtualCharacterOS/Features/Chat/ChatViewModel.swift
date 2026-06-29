@@ -447,8 +447,16 @@ final class ChatViewModel {
         let merged = mergeTinyReplyFragments(sentenceSegments)
         let maxBubbles = maxBubbleCount(for: replySignal)
         let limited = limitReplySegments(merged, maxCount: maxBubbles)
+        let questionSuppressed = dropGenericTrailingQuestionIfNeeded(
+            limited,
+            replySignal: replySignal
+        )
+        let tutorialSuppressed = dropGenericTutorialTailIfNeeded(
+            questionSuppressed,
+            replySignal: replySignal
+        )
 
-        return limited.isEmpty ? [cleaned] : limited
+        return tutorialSuppressed.isEmpty ? [cleaned] : tutorialSuppressed
     }
 
     private func maxBubbleCount(for signal: ContextBuilder.ReplySignalStrength) -> Int {
@@ -460,6 +468,57 @@ final class ChatViewModel {
         case .deep:
             return 3
         }
+    }
+
+    private func dropGenericTrailingQuestionIfNeeded(
+        _ segments: [String],
+        replySignal: ContextBuilder.ReplySignalStrength
+    ) -> [String] {
+        switch replySignal {
+        case .minimal, .low, .light:
+            break
+        case .normal, .deep:
+            return segments
+        }
+
+        guard segments.count > 1,
+              let last = segments.last,
+              isGenericTrailingQuestion(last) else {
+            return segments
+        }
+        return Array(segments.dropLast())
+    }
+
+    private func isGenericTrailingQuestion(_ text: String) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "?", with: "？")
+        return Self.genericTrailingQuestions.contains(normalized)
+    }
+
+    private func dropGenericTutorialTailIfNeeded(
+        _ segments: [String],
+        replySignal: ContextBuilder.ReplySignalStrength
+    ) -> [String] {
+        switch replySignal {
+        case .minimal, .low, .light:
+            break
+        case .normal, .deep:
+            return segments
+        }
+
+        guard segments.count > 1,
+              let last = segments.last,
+              isGenericTutorialTail(last) else {
+            return segments
+        }
+        return Array(segments.dropLast())
+    }
+
+    private func isGenericTutorialTail(_ text: String) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "?", with: "？")
+            .replacingOccurrences(of: "!", with: "！")
+        return Self.genericTutorialTails.contains(normalized)
     }
 
     /// 去掉文本内部的换行，只保留单行气泡。
@@ -683,6 +742,34 @@ final class ChatViewModel {
 
     private static let allowedShortStandaloneReplies: Set<String> = [
         "嗯", "好", "可以", "我懂", "行", "对", "没用"
+    ]
+
+    private static let genericTrailingQuestions: Set<String> = [
+        "你呢？",
+        "你觉得呢？",
+        "你想聊聊吗？",
+        "要不要继续说说？",
+        "可以跟我说说吗？",
+        "你还有什么想聊的吗？",
+        "那你现在感觉怎么样？",
+        "你平时也会这样吗？",
+        "你是怎么做到的？",
+        "需要我帮你分析一下吗？"
+    ]
+
+    private static let genericTutorialTails: Set<String> = [
+        "你可以试试看。",
+        "你可以试试看",
+        "可以先休息一下。",
+        "可以先休息一下",
+        "希望对你有帮助。",
+        "希望对你有帮助",
+        "如果你愿意，我可以继续帮你分析。",
+        "如果你愿意，我可以继续帮你分析",
+        "我可以帮你一起拆解。",
+        "我可以帮你一起拆解",
+        "慢慢来就好。",
+        "慢慢来就好"
     ]
 
     private static func readConfig() -> ProviderConfig {
