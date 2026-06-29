@@ -13,9 +13,13 @@ final class ChatViewModel {
         isLoading && typingIndicatorBranchID == activeBranchID
     }
 
+    var isSelectionMode: Bool = false
+    var selectedMessageIDs: Set<UUID> = []
+
     private let store: any MessageStore
     private let profileStore: any CharacterProfileStore
     private let branchStore: any BranchStore
+    private let hiddenStore: any HiddenMessageStore
     private let contextBuilder: ContextBuilder
     private let provider: any LLMProvider
     private(set) var activeBranchID: UUID
@@ -25,12 +29,14 @@ final class ChatViewModel {
         store: any MessageStore,
         profileStore: any CharacterProfileStore = try! FileCharacterProfileStore(),
         branchStore: any BranchStore = try! FileBranchStore(),
+        hiddenStore: any HiddenMessageStore = try! FileHiddenMessageStore(),
         contextBuilder: ContextBuilder = ContextBuilder(),
         provider: any LLMProvider = OpenAICompatibleProvider()
     ) {
         self.store = store
         self.profileStore = profileStore
         self.branchStore = branchStore
+        self.hiddenStore = hiddenStore
         self.character = Self.readCharacterProfile(store: profileStore)
         self.contextBuilder = contextBuilder
         self.provider = provider
@@ -90,12 +96,59 @@ final class ChatViewModel {
     }
 
     func loadMessages() {
-        do { messages = try loadVisibleMessagesForActiveBranch() }
-        catch { messages = []; errorMessage = "加载消息失败" }
+        do {
+            let visible = try loadVisibleMessagesForActiveBranch()
+            let hiddenIDs = (try? hiddenStore.loadHiddenMessageIDs(branchID: activeBranchID)) ?? []
+            messages = visible.filter { !hiddenIDs.contains($0.id) }
+        } catch {
+            messages = []; errorMessage = "加载消息失败"
+        }
     }
 
     func reloadMessages() {
         loadMessages()
+    }
+
+    // MARK: - Selection & Hide
+
+    func enterSelectionMode(from messageID: UUID) {
+        guard !isSelectionMode else { return }
+        isSelectionMode = true
+        selectedMessageIDs = [messageID]
+    }
+
+    func exitSelectionMode() {
+        isSelectionMode = false
+        selectedMessageIDs = []
+    }
+
+    func toggleMessageSelection(_ id: UUID) {
+        guard isSelectionMode else { return }
+        if selectedMessageIDs.contains(id) {
+            selectedMessageIDs.remove(id)
+        } else {
+            selectedMessageIDs.insert(id)
+        }
+    }
+
+    func hideSelectedMessages() {
+        let toHide = selectedMessageIDs.filter { id in
+            guard let msg = messages.first(where: { $0.id == id }) else { return false }
+            return msg.status == .sent
+        }
+        guard !toHide.isEmpty else {
+            exitSelectionMode()
+            return
+        }
+        do {
+            try hiddenStore.hideMessages(Set(toHide), branchID: activeBranchID)
+        } catch {
+            errorMessage = "隐藏失败，请重试。"
+            return
+        }
+        let hiddenSet = Set(toHide)
+        messages.removeAll(where: { hiddenSet.contains($0.id) })
+        exitSelectionMode()
     }
 
     /// 重新加载角色档案（从编辑器返回时调用）。
@@ -230,7 +283,9 @@ final class ChatViewModel {
 
     private func callLLM(assistantID: UUID, branchID: UUID) async {
         do {
-            let branchMessages = try loadVisibleMessages(for: branchID)
+            let visibleMessages = try loadVisibleMessages(for: branchID)
+            let hiddenIDs = (try? hiddenStore.loadHiddenMessageIDs(branchID: branchID)) ?? []
+            let branchMessages = visibleMessages.filter { !hiddenIDs.contains($0.id) }
             let supplement = Self.readCharacterSupplement()
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()

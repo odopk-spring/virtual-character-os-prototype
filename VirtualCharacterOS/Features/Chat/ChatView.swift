@@ -6,6 +6,7 @@ struct ChatView: View {
     @State private var showBranchSwitcher: Bool = false
     @State private var characterAvatar: UIImage?
     @State private var restoreTargetMessage: ChatMessage?
+    @State private var showHideConfirm: Bool = false
 
     init(store: any MessageStore) {
         _viewModel = State(initialValue: ChatViewModel(store: store))
@@ -13,14 +14,22 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部导航栏
-            ChatTopBar(
-                characterName: viewModel.character.name,
-                subtitle: viewModel.character.subtitle,
-                isTyping: viewModel.isTypingIndicatorVisible,
-                onSettingsTap: { showSettings = true },
-                onBranchTap: { showBranchSwitcher = true }
-            )
+            // 顶部导航栏 / 选择工具栏
+            if viewModel.isSelectionMode {
+                ChatSelectionToolbar(
+                    selectedCount: viewModel.selectedMessageIDs.count,
+                    onCancel: { viewModel.exitSelectionMode() },
+                    onHide: { showHideConfirm = true }
+                )
+            } else {
+                ChatTopBar(
+                    characterName: viewModel.character.name,
+                    subtitle: viewModel.character.subtitle,
+                    isTyping: viewModel.isTypingIndicatorVisible,
+                    onSettingsTap: { showSettings = true },
+                    onBranchTap: { showBranchSwitcher = true }
+                )
+            }
 
             // 错误横幅
             if let error = viewModel.errorMessage {
@@ -47,7 +56,10 @@ struct ChatView: View {
                                     message: message,
                                     availableWidth: geometry.size.width,
                                     characterAvatarImage: characterAvatar,
-                                    onRestore: { msg in restoreTargetMessage = msg }
+                                    onRestore: { msg in restoreTargetMessage = msg },
+                                    isSelectionMode: viewModel.isSelectionMode,
+                                    isSelected: viewModel.selectedMessageIDs.contains(message.id),
+                                    onSelect: { _ in viewModel.toggleMessageSelection(message.id) }
                                 )
                                 .id(message.id)
                             }
@@ -114,6 +126,15 @@ struct ChatView: View {
             }
         } message: {
             Text("将从这条消息创建一个新分支。原对话会保留，之后的新消息会进入新分支。")
+        }
+        .alert("不显示这些消息？", isPresented: $showHideConfirm) {
+            Button("取消", role: .cancel) { showHideConfirm = false }
+            Button("不显示", role: .destructive) {
+                viewModel.hideSelectedMessages()
+                showHideConfirm = false
+            }
+        } message: {
+            Text("这些消息只会在当前分支隐藏，不会从底层记录中删除，也不会影响其他分支。")
         }
     }
 }
