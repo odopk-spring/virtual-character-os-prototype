@@ -4,6 +4,7 @@ import SwiftUI
 struct ChatTopBar: View {
     let characterName: String
     let subtitle: String
+    let isTyping: Bool
     let onSettingsTap: () -> Void
     let onBranchTap: (() -> Void)?
 
@@ -25,10 +26,21 @@ struct ChatTopBar: View {
 
                 Spacer()
 
-                // 中间：角色名
-                Text(characterName)
-                    .font(.system(size: ChatUIStyle.topBarTitleSize, weight: .semibold))
-                    .foregroundStyle(.primary)
+                // 中间：角色名 / typing 状态，同一位置替换，避免消息列表跳动。
+                ZStack {
+                    if isTyping {
+                        ChatTypingIndicatorView()
+                            .transition(.opacity)
+                    } else {
+                        Text(characterName)
+                            .font(.system(size: ChatUIStyle.topBarTitleSize, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: 160, height: ChatUIStyle.iconTouchArea)
+                .animation(.easeInOut(duration: 0.18), value: isTyping)
 
                 Spacer()
 

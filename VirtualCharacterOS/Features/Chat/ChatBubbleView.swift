@@ -16,14 +16,17 @@ struct ChatBubbleView: View {
         availableWidth * ChatUIStyle.bubbleMaxWidthRatio
     }
 
-    private var isEmptyAssistantPlaceholder: Bool {
-        message.role == .assistant &&
-        message.status == .sending &&
-        message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var isAssistantPlaceholder: Bool {
+        guard message.role == .assistant,
+              message.status == .sending else {
+            return false
+        }
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty || trimmed == "..." || trimmed == "…"
     }
 
     var body: some View {
-        if isEmptyAssistantPlaceholder {
+        if isAssistantPlaceholder {
             Color.clear.frame(height: 0)
         } else {
             HStack(alignment: .top, spacing: ChatUIStyle.avatarToBubbleGap) {

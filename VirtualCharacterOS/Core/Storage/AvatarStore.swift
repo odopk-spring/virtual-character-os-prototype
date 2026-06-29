@@ -4,6 +4,7 @@ import UIKit
 /// 本地角色头像存储。单角色，固定文件名，不上传。
 struct AvatarStore: Sendable {
     private static let avatarFilename = "character-avatar.jpg"
+    private static let defaultAvatarImageName = "default-character-avatar.jpg"
 
     // MARK: - Paths
 
@@ -50,12 +51,12 @@ struct AvatarStore: Sendable {
         try FileManager.default.moveItem(at: tempURL, to: url)
     }
 
-    /// 加载头像图片。
+    /// 加载角色头像。用户自定义头像优先；没有自定义头像时使用内置默认头像。
     static func loadImage() -> UIImage? {
         guard let url = try? avatarURL(),
               FileManager.default.fileExists(atPath: url.path),
               let data = try? Data(contentsOf: url) else {
-            return nil
+            return UIImage(named: defaultAvatarImageName)
         }
         return UIImage(data: data)
     }
