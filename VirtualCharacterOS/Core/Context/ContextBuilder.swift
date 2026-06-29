@@ -33,17 +33,22 @@ struct ContextBuilder: Sendable {
 
     /// 用户输入信息量信号。
     enum ReplySignalStrength: String {
+        case minimal
         case low
         case light
         case normal
         case deep
     }
 
+    func replySignal(for message: ChatMessage?) -> ReplySignalStrength {
+        classifyUserReplySignal(message)
+    }
+
     /// 根据上一条用户消息分类信息量。
     private func classifyUserReplySignal(_ message: ChatMessage?) -> ReplySignalStrength {
         guard let message else { return .normal }
         let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .low }
+        guard !trimmed.isEmpty else { return .minimal }
 
         // deep：明确要求详细/分析/方案/提示词/代码/审计等
         let deepMarkers = ["详细", "完整", "分析", "解释", "对比", "方案", "提示词",
@@ -53,14 +58,22 @@ struct ContextBuilder: Sendable {
             return .deep
         }
 
-        // low：极低信息量
-        if trimmed.count <= 2 && !trimmed.contains("？") && !trimmed.contains("?") {
-            return .low
+        // minimal：纯确认、语气词、符号、笑声或收束信号。
+        let minimalPhrases = ["嗯", "嗯嗯", "哦", "啊", "呃", "额", "好", "行",
+                              "对", "是", "没", "懂", "6", "。", "？", "?",
+                              "...", "……", "哈哈", "哈哈哈", "hh", "hhh",
+                              "没事", "算了"]
+        if minimalPhrases.contains(trimmed) || isMinimalSymbolOnly(trimmed) || isRepeatedLaughter(trimmed) {
+            return .minimal
         }
-        let lowPhrases = ["嗯", "哦", "啊", "呃", "额", "哈哈", "哈哈哈", "行", "好",
-                          "好吧", "可以", "算了", "6", "？", "。", "...", "……",
-                          "不是", "没事", "还行", "没", "对", "是", "懂", "嗯嗯"]
+
+        // low：短，但还有一点态度或内容。
+        let lowPhrases = ["好吧", "可以", "可以吧", "不是", "还行", "不知道", "无所谓", "随便"]
         if lowPhrases.contains(trimmed) { return .low }
+
+        if trimmed.count <= 2 && !trimmed.contains("？") && !trimmed.contains("?") {
+            return .minimal
+        }
 
         // light：轻量闲聊
         if trimmed.count <= 10 && !trimmed.contains("？") && !trimmed.contains("?") {
@@ -73,12 +86,33 @@ struct ContextBuilder: Sendable {
         return .normal
     }
 
+    private func isMinimalSymbolOnly(_ text: String) -> Bool {
+        guard !text.isEmpty, text.count <= 4 else { return false }
+        return text.unicodeScalars.allSatisfy { scalar in
+            CharacterSet.punctuationCharacters.contains(scalar) ||
+            CharacterSet.symbols.contains(scalar)
+        }
+    }
+
+    private func isRepeatedLaughter(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        if lower.count <= 8, lower.allSatisfy({ $0 == "h" }) {
+            return true
+        }
+        if text.count <= 8, text.allSatisfy({ $0 == "哈" }) {
+            return true
+        }
+        return false
+    }
+
     /// 根据信号强度生成回复长度策略 prompt。
     private func buildReplyLengthPolicy(for signal: ReplySignalStrength) -> String {
         let specific: String
         switch signal {
+        case .minimal:
+            specific = "当前用户上一条消息几乎没有新增信息：只给 1 个极短自然回应，尽量 1-5 个中文字符。不要解释、不要总结、不要追问、不要重新打开话题；可以让这一轮自然结束。"
         case .low:
-            specific = "当前用户上一条消息信息量很低：请只给极短自然回应，0-1句即可，不解释、不追问、不总结。"
+            specific = "当前用户上一条消息信息量很低：请给很短的自然回应，约 5-15 个中文字符，不分析、不展开、不追问。"
         case .light:
             specific = "当前用户上一条消息偏轻量闲聊：请短回应，接住语气即可，不展开分析。"
         case .normal:
@@ -255,7 +289,9 @@ struct ContextBuilder: Sendable {
             .filter { $0.status == .sent && $0.role != .system }
             .suffix(maxRecentMessages)
 
-        let pendingHint = buildPendingQuestionHint(from: Array(effective))
+        let recentUserMessages = effective.filter { $0.role == .user }
+        let signal = classifyUserReplySignal(recentUserMessages.last)
+        let pendingHint = signal == .minimal ? nil : buildPendingQuestionHint(from: Array(effective))
 
         let system = ChatRequestMessage(
             role: .system,
@@ -265,7 +301,7 @@ struct ContextBuilder: Sendable {
                 pendingHint: pendingHint,
                 manualMemories: manualMemories,
                 worldBookEntries: worldBookEntries,
-                recentUserMessages: effective.filter { $0.role == .user },
+                recentUserMessages: recentUserMessages,
                 allowsNarrationBlocks: allowsNarrationBlocks
             )
         )

@@ -305,6 +305,9 @@ final class ChatViewModel {
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()
             let allowsNarrationBlocks = Self.readAllowsNarrationBlocks()
+            let replySignal = contextBuilder.replySignal(
+                for: branchMessages.last(where: { $0.role == .user && $0.status == .sent })
+            )
             let requestMessages = contextBuilder.buildRequestMessages(
                 recentMessages: branchMessages, character: character,
                 characterSupplement: supplement,
@@ -328,7 +331,11 @@ final class ChatViewModel {
             let response = try await provider.send(request, config: config)
 
             let raw = response.content
-            let chunks = splitAssistantReply(raw, allowsNarrationBlocks: allowsNarrationBlocks)
+            let chunks = splitAssistantReply(
+                raw,
+                allowsNarrationBlocks: allowsNarrationBlocks,
+                replySignal: replySignal
+            )
 
             // 第一条 chunk 复用占位消息（带 branchID 保护）
             let firstChunk = chunks[0]
@@ -408,7 +415,11 @@ final class ChatViewModel {
     }
 
     /// 将模型回复拆成 1-4 个气泡；不强制多气泡，优先保留自然语义边界。
-    private func splitAssistantReply(_ text: String, allowsNarrationBlocks: Bool) -> [String] {
+    private func splitAssistantReply(
+        _ text: String,
+        allowsNarrationBlocks: Bool,
+        replySignal: ContextBuilder.ReplySignalStrength
+    ) -> [String] {
         let prepared = allowsNarrationBlocks
             ? text
             : ChatNarrationFormatter.removingNarrationMarkup(from: text)
@@ -434,7 +445,8 @@ final class ChatViewModel {
                 : [segment]
         }
         let merged = mergeTinyReplyFragments(sentenceSegments)
-        let limited = limitReplySegments(merged, maxCount: 4)
+        let maxBubbles = replySignal == .minimal ? 1 : 4
+        let limited = limitReplySegments(merged, maxCount: maxBubbles)
 
         return limited.isEmpty ? [cleaned] : limited
     }
