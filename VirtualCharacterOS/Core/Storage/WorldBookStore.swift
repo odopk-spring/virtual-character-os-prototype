@@ -13,6 +13,7 @@ protocol WorldBookStore: Sendable {
 final class FileWorldBookStore: WorldBookStore {
     private let fileURL: URL
     private static let defaultRealismSeededKey = "WorldBook.defaultRealismEntriesSeeded.v1"
+    private static let claudeStyleSeededKey = "WorldBook.claudeStyleEntriesSeeded.v1"
 
     /// 默认路径：Application Support/VirtualCharacterOS/worldbook.json
     init(directory: URL? = nil) throws {
@@ -41,13 +42,26 @@ final class FileWorldBookStore: WorldBookStore {
     func loadEntries() throws -> [WorldBookEntry] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             markDefaultRealismEntriesSeeded()
-            return Self.defaultRealismEntries
+            markClaudeStyleEntriesSeeded()
+            return Self.defaultRealismEntries + Self.defaultClaudeStyleEntries
         }
         let data = try Data(contentsOf: fileURL)
         let entries = try JSONDecoder().decode([WorldBookEntry].self, from: data)
         if entries.isEmpty && !hasSeededDefaultRealismEntries {
             markDefaultRealismEntriesSeeded()
-            return Self.defaultRealismEntries
+            markClaudeStyleEntriesSeeded()
+            return Self.defaultRealismEntries + Self.defaultClaudeStyleEntries
+        }
+        if !hasSeededClaudeStyleEntries {
+            var merged = entries
+            let existingIDs = Set(entries.map(\.id))
+            let missing = Self.defaultClaudeStyleEntries.filter { !existingIDs.contains($0.id) }
+            if !missing.isEmpty {
+                merged.append(contentsOf: missing)
+                try writeAtomic(merged)
+            }
+            markClaudeStyleEntriesSeeded()
+            return merged
         }
         return entries
     }
@@ -75,6 +89,7 @@ final class FileWorldBookStore: WorldBookStore {
 
     func clearEntries() throws {
         markDefaultRealismEntriesSeeded()
+        markClaudeStyleEntriesSeeded()
         try writeAtomic([])
     }
 
@@ -95,8 +110,16 @@ final class FileWorldBookStore: WorldBookStore {
         UserDefaults.standard.bool(forKey: Self.defaultRealismSeededKey)
     }
 
+    private var hasSeededClaudeStyleEntries: Bool {
+        UserDefaults.standard.bool(forKey: Self.claudeStyleSeededKey)
+    }
+
     private func markDefaultRealismEntriesSeeded() {
         UserDefaults.standard.set(true, forKey: Self.defaultRealismSeededKey)
+    }
+
+    private func markClaudeStyleEntriesSeeded() {
+        UserDefaults.standard.set(true, forKey: Self.claudeStyleSeededKey)
     }
 }
 
@@ -199,6 +222,60 @@ private extension FileWorldBookStore {
                 keywords: ["活人感", "不完美", "不确定", "自嘲", "弹性", "留白"],
                 category: .rule,
                 priority: 8,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            )
+        ]
+    }()
+
+    static let defaultClaudeStyleEntries: [WorldBookEntry] = {
+        let createdAt = Date(timeIntervalSince1970: 1_767_100_000)
+        return [
+            WorldBookEntry(
+                id: UUID(uuidString: "E98E4E1F-35F4-4B0B-A653-2C1B31E5F6A1")!,
+                title: "Claude别这么说：人设核心优先",
+                content: """
+                人设核心必须稳定，不能被单轮互动压力改写。可以随着共同经历改变熟悉程度、关系表达和说话距离，但认知方式、情绪底色、价值取向等深层结构不能漂移。任何状态、语气和临场反应都要服从角色本身，而不是服从“显得温柔理性”的默认模型底色。
+                """,
+                keywords: ["Claude别这么说", "人设", "人格", "稳定", "关系", "角色核心"],
+                category: .rule,
+                priority: 10,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            ),
+            WorldBookEntry(
+                id: UUID(uuidString: "AC5270D0-8F85-48FA-A180-1F8E0F8DC5E9")!,
+                title: "Claude别这么说：状态连续但不解释",
+                content: """
+                角色状态是连续存在的，不是每次用户输入后重新开机。用户消息应像打断了角色正在进行的状态，而不是重置上下文。状态只作为隐性偏置影响回复，不要显式说明“我现在意识到”“我停顿了一下”“我内心其实”等自我解释，也不要把内部变化翻译成心理总结。
+                """,
+                keywords: ["Claude别这么说", "状态", "连续", "内心", "解释", "自我叙述"],
+                category: .rule,
+                priority: 10,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            ),
+            WorldBookEntry(
+                id: UUID(uuidString: "B4414D0F-A4B4-41E8-9E98-3D7A6868469F")!,
+                title: "Claude别这么说：压制助手确认和温柔八股",
+                content: """
+                避免默认助手腔：不要用“我懂”“我明白”“收到”“好的我知道了”这类认知确认开头，除非它带来新的语义。不要默认安抚、鼓励、纠正、总结、复述或指导用户。不要把近期对话整理成时间线，也不要用“这说明/这意味着/这其实是”替用户解释意义。
+                """,
+                keywords: ["Claude别这么说", "助手腔", "我懂", "收到", "安抚", "总结", "复述"],
+                category: .rule,
+                priority: 10,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            ),
+            WorldBookEntry(
+                id: UUID(uuidString: "F0A33E62-FB97-4D8A-95D0-977FE88378A0")!,
+                title: "Claude别这么说：禁用修辞循环和重定义句式",
+                content: """
+                避免模板化表达结构：不要用“不是A，不是B，而是C”“既不是…也不是…”这类层层排除再重定义；不要在同一回复里连续使用“像…像…”“仿佛…仿佛…”等重复类比；不要把同一个属性反复升级描述；不要用破折号、断裂停顿或自我修正来制造情绪节奏。
+                """,
+                keywords: ["Claude别这么说", "模板", "不是而是", "类比", "破折号", "修辞", "重定义"],
+                category: .rule,
+                priority: 10,
                 createdAt: createdAt,
                 updatedAt: createdAt
             )
