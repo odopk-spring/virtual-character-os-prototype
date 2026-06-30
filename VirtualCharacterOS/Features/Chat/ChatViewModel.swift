@@ -351,11 +351,13 @@ final class ChatViewModel {
                 sceneMode: sceneMode,
                 config: config
             )
-            let chunks = splitAssistantReply(
-                finalText,
-                sceneMode: sceneMode,
-                replySignal: replySignal,
-                replyBudget: replyBudget
+            let chunks = renderableAssistantChunks(
+                from: splitAssistantReply(
+                    finalText,
+                    sceneMode: sceneMode,
+                    replySignal: replySignal,
+                    replyBudget: replyBudget
+                )
             )
 
             #if DEBUG
@@ -469,6 +471,26 @@ final class ChatViewModel {
         UInt64(0.22 * 1_000_000_000)
     }
 
+    private func renderableAssistantChunks(from chunks: [String]) -> [String] {
+        let renderable = chunks.compactMap { renderableAssistantChunk($0) }
+        return renderable.isEmpty ? [Self.emptyAssistantReplyFallback] : renderable
+    }
+
+    private func renderableAssistantChunk(_ text: String) -> String? {
+        let cleaned = normalizeAssistantReply(text)
+        guard !cleaned.isEmpty else { return nil }
+
+        if ChatNarrationFormatter.narrationText(from: cleaned) != nil {
+            return cleaned
+        }
+
+        if Self.isStandaloneNarrationMarkup(cleaned) {
+            return nil
+        }
+
+        return cleaned
+    }
+
     /// 将模型回复拆成少量气泡；不强制多气泡，优先保留自然语义边界。
     private func splitAssistantReply(
         _ text: String,
@@ -481,7 +503,7 @@ final class ChatViewModel {
             ? text
             : ChatNarrationFormatter.removingNarrationMarkup(from: text)
         let cleaned = normalizeAssistantReply(prepared)
-        guard !cleaned.isEmpty else { return [cleaned] }
+        guard !cleaned.isEmpty else { return [Self.emptyAssistantReplyFallback] }
 
         let narrationAwareSegments = allowsNarrationBlocks
             ? ChatNarrationFormatter.splitNarrationSegments(cleaned)
@@ -539,7 +561,10 @@ final class ChatViewModel {
             replySignal: replySignal
         )
 
-        return tutorialSuppressed.isEmpty ? [cleaned] : tutorialSuppressed
+        let finalSegments = tutorialSuppressed
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return finalSegments.isEmpty ? [cleaned] : finalSegments
     }
 
     private func maxBubbleCount(for signal: ContextBuilder.ReplySignalStrength) -> Int {
@@ -827,6 +852,24 @@ final class ChatViewModel {
     private static let allowedShortStandaloneReplies: Set<String> = [
         "嗯", "好", "可以", "我懂", "行", "对", "没用"
     ]
+
+    private static let emptyAssistantReplyFallback = "我在。"
+
+    private static func isStandaloneNarrationMarkup(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { return false }
+
+        let pairs: [(Character, Character)] = [
+            ("*", "*"),
+            ("（", "）"),
+            ("(", ")"),
+            ("【", "】")
+        ]
+
+        return pairs.contains { pair in
+            trimmed.first == pair.0 && trimmed.last == pair.1
+        }
+    }
 
     private static let genericTrailingQuestions: Set<String> = [
         "你呢？",
