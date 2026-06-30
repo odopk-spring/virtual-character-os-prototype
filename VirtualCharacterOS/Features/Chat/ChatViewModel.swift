@@ -5,7 +5,6 @@ import SwiftUI
 @Observable
 final class ChatViewModel {
     var messages: [ChatMessage] = []
-    var inputText: String = ""
     var isLoading: Bool = false
     var errorMessage: String?
     var character: CharacterProfile
@@ -55,8 +54,8 @@ final class ChatViewModel {
         touchBranchActivation()
     }
 
-    func sendMessage() {
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    func sendMessage(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isLoading else { return }
 
         let userMessage = ChatMessage(
@@ -70,8 +69,6 @@ final class ChatViewModel {
             errorMessage = "消息保存失败"
             return
         }
-        inputText = ""
-
         let assistantID = UUID()
         let assistantPlaceholder = ChatMessage(
             id: assistantID, role: .assistant, content: "", status: .sending,

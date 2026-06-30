@@ -82,9 +82,8 @@ struct ChatView: View {
 
             // 底部输入栏
             ChatInputBar(
-                text: $viewModel.inputText,
                 isLoading: viewModel.isLoading,
-                onSend: { viewModel.sendMessage() }
+                onSend: { viewModel.sendMessage($0) }
             )
         }
         .sheet(isPresented: $showSettings) {

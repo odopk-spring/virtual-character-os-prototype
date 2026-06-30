@@ -2,9 +2,10 @@ import SwiftUI
 
 /// 底部输入栏。参考即时通讯布局：左侧圆形按钮 + 白色输入框 + 右侧图标按钮。
 struct ChatInputBar: View {
-    @Binding var text: String
     let isLoading: Bool
-    let onSend: () -> Void
+    let onSend: (String) -> Void
+
+    @State private var text: String = ""
 
     private var hasText: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -36,7 +37,7 @@ struct ChatInputBar: View {
                     .background(.white)
                     .clipShape(RoundedRectangle(cornerRadius: ChatUIStyle.inputFieldCornerRadius))
                     .onSubmit {
-                        if hasText { onSend() }
+                        sendCurrentText()
                     }
 
                 // 右侧：表情 + 发送/加号
@@ -48,9 +49,7 @@ struct ChatInputBar: View {
                 }
 
                 Button(action: {
-                    if hasText {
-                        onSend()
-                    }
+                    sendCurrentText()
                 }) {
                     Image(systemName: hasText ? "arrow.up.circle.fill" : "plus.circle")
                         .font(.system(size: 26))
@@ -63,5 +62,12 @@ struct ChatInputBar: View {
             .frame(height: ChatUIStyle.inputBarHeight)
         }
         .background(ChatUIStyle.inputBarBackground)
+    }
+
+    private func sendCurrentText() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isLoading else { return }
+        text = ""
+        onSend(trimmed)
     }
 }
