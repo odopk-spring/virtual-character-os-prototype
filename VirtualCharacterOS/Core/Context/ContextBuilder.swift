@@ -71,6 +71,10 @@ struct ContextBuilder: Sendable {
         let lowPhrases = ["好吧", "可以", "可以吧", "不是", "还行", "还行吧", "没什么", "不知道", "无所谓", "随便"]
         if lowPhrases.contains(trimmed) { return .low }
 
+        if looksLikeShortQuestion(trimmed) {
+            return .normal
+        }
+
         if trimmed.count <= 2 && !trimmed.contains("？") && !trimmed.contains("?") {
             return .minimal
         }
@@ -84,6 +88,13 @@ struct ContextBuilder: Sendable {
         if lightMarkers.contains(where: { trimmed.contains($0) }) { return .light }
 
         return .normal
+    }
+
+    private func looksLikeShortQuestion(_ text: String) -> Bool {
+        guard text.count <= 16 else { return false }
+        if text.contains("？") || text.contains("?") { return true }
+        let questionMarkers = ["吗", "呢", "怎么", "什么", "为什么", "是不是", "要不要", "能不能", "可以吗", "好吗"]
+        return questionMarkers.contains(where: { text.contains($0) })
     }
 
     private func isMinimalSymbolOnly(_ text: String) -> Bool {
@@ -112,51 +123,123 @@ struct ContextBuilder: Sendable {
         case long
     }
 
-    /// 根据信号强度 + 长度等级生成回复长度策略 prompt。
-    private func buildReplyLengthPolicy(
+    /// 末尾输出控制。放在 system prompt 最后，降低长 prompt 中规则稀释。
+    private func buildTailOutputControl(
         for signal: ReplySignalStrength,
-        lengthLevel: ReplyLengthLevel = .normal
+        lengthLevel: ReplyLengthLevel,
+        allowsNarrationBlocks: Bool
     ) -> String {
-        let specific: String
-        switch signal {
-        case .minimal:
-            specific = "当前用户上一条消息几乎没有新增信息：只给 1 个极短自然回应，尽量 1-5 个中文字符。不要解释、不要总结、不要建议、不要追问、不要重新打开话题；可以让这一轮自然结束。"
-        case .low:
-            specific = "当前用户上一条消息信息量很低：回复约 5-15 个中文字符，1 个短句即可。轻轻接住，不解释、不总结、不建议、不展开、不追问。"
-        case .light:
-            specific = "当前用户上一条消息偏轻量闲聊：回复约 10-35 个中文字符。可以有一点态度或情绪，但不要分析对方为什么这样，不要进入建议、安慰或教程模式；通常不要追问。"
-        case .normal:
-            specific = "当前用户上一条消息为普通对话：回复约 20-70 个中文字符，只表达 1 个核心意思。如有自然断点可拆成 1-2 个短气泡，不写小作文，不默认拆步骤、给方案或总结用户；问题可以有，但不能当默认收尾。"
-        case .deep:
-            specific = "当前用户明确要求详细帮助：可以更完整，整轮回复约 80-220 个中文字符，仍保持聊天语气。可以问精确澄清问题，但避免泛泛续聊和论文式、客服式、教程式结构。"
-        }
-
-        let lengthNote: String
+        let lengthPolicy: String
         switch lengthLevel {
         case .short:
-            lengthNote = "当前回复长度设置为简短：在上面的基础上再缩短一半左右，说最核心的就够。"
+            lengthPolicy = """
+            回复长度：简短
+            - 每条聊天消息尽量 6-28 个中文字符。
+            - 整轮聊天正文约 8-45 个中文字符。
+            - 普通聊天按自然句拆分，一句话一条气泡，不强行合并。
+            - 不解释、不总结、不列点、不默认追问。
+            """
         case .normal:
-            lengthNote = ""
+            lengthPolicy = """
+            回复长度：标准
+            - 每条聊天消息尽量 12-60 个中文字符。
+            - 整轮聊天正文约 30-140 个中文字符。
+            - 普通聊天按自然句拆分，一句话一条气泡，不强行合并。
+            - 直接回应，只讲一个核心意思。
+            """
         case .long:
-            lengthNote = "当前回复长度设置为详细：在上面的基础上可以再把事情说清楚一点，比平时稍长。但不要为了凑字数废话。"
+            lengthPolicy = """
+            回复长度：详细
+            - 不限制聊天正文总字数、单条气泡字数或气泡数量。
+            - 可以完整展开内容、情绪、细节和上下文，不为了变短而压缩。
+            - 普通聊天仍按自然句拆分，一句话一条气泡，不强行合并。
+            - 当用户希望进入深度交流，探讨某个事情，或者倾诉心里的时候才使用。
+            """
+        }
+
+        let signalPolicy: String
+        if lengthLevel == .long {
+            signalPolicy = "当前选择详细模式：不要再按低信号规则压短回复，可以自由展开真实反应、情绪层次、背景细节和后续表达。"
+        } else {
+            switch signal {
+            case .minimal:
+                signalPolicy = "当前用户输入几乎没有新增信息：即使当前长度设置更长，也优先给一个极短自然回应，可以自然停住。"
+            case .low:
+                signalPolicy = "当前用户输入信息量很低：轻轻接住，不展开解释，不主动把话题拉长。"
+            case .light:
+                signalPolicy = "当前用户输入偏轻量闲聊：可以有一点态度或情绪，但不要进入建议、安慰或教程模式。"
+            case .normal:
+                signalPolicy = "当前用户输入是普通对话：直接回答，不默认写成分析或方案。"
+            case .deep:
+                signalPolicy = "当前用户输入需要认真回应：可以更完整，但仍保持聊天语气，不写成报告。"
+            }
+        }
+
+        let narrationPolicy: String
+        if allowsNarrationBlocks {
+            if lengthLevel == .long {
+                narrationPolicy = """
+                旁白模式：开启，且当前是详细模式
+                - 大力使用旁白来承载动作、表情、环境、停顿、心理变化和氛围推进。
+                - 旁白独立成行，用 （...） 或 *...* 包起来。
+                - 旁白可以明显多于聊天正文，字数也可以多于正文。
+                - 可以连续输出多条旁白，也可以让旁白和聊天文字交替出现。
+                - 环境描写和心理描写可以更细，不要为了压短而删掉有意义的细节。
+
+                示例：
+                用户：你好吗
+                可以输出：
+                还行，刚刚才慢下来一点
+                （她把手机拿近了些，屏幕的光落在脸上，像是终于从一整天的嘈杂里抽身出来）
+                （她停了一会儿，没有立刻把话发出去，心里还残留着一点没散开的疲惫和迟疑）
+                但看到你问这句，感觉好像被轻轻接住了一下
+                （房间里安静下来，她靠回椅背，呼吸也跟着放缓了一点）
+
+                不要输出：
+                （她笑了笑）
+                """
+            } else {
+                narrationPolicy = """
+                旁白模式：开启
+                - 在不打断聊天的前提下，更积极地加入动作、表情、心理或场景旁白。
+                - 旁白独立成行，用 （...） 或 *...* 包起来。
+                - 一轮里可以有多条旁白，用来表现停顿、表情、动作、环境或心理变化。
+                - 旁白可以和聊天文字交替出现，但不要只输出旁白而没有聊天文字。
+                - 旁白不参与聊天正文长度预算。
+
+                示例：
+                用户：你好吗
+                可以输出：
+                还行，刚缓过来一点
+                （她把手机放近了些，像是终于从一堆事情里抬起头）
+                刚刚有点忙，但现在好多了
+                （她轻轻舒了口气，指尖在屏幕边缘停了一下）
+
+                不要输出：
+                （她笑了笑）
+                """
+            }
+        } else {
+            narrationPolicy = """
+            旁白模式：关闭
+            - 只输出聊天文字。
+            - 不写动作、心理、场景或旁白。
+            - 不使用 （...） 或 *...* 包动作描写。
+
+            示例：
+            用户：你好吗
+            输出：还行，刚忙完一点
+            不要输出：（她笑了笑）还行
+            """
         }
 
         return """
-        【简短偏置】
-        默认把回复写短。真实聊天里多数回复只表达一个小意思，不需要完整解释、总结或建议。除非用户明确要求详细，否则宁可短一点、自然一点，也不要像教程或客服。
+        【本轮输出控制】
+        \(lengthPolicy)
 
-        【追问克制】
-        不要把每轮回复都写成问题结尾。很多回复可以只是接一句、评价一句、轻轻分享一点，或者自然停住。除非对方明确需要追问、信息明显不足、或正在做详细任务，否则不要用"你呢""要不要继续聊""可以跟我说说吗"这类泛问。
+        \(signalPolicy)
 
-        【非教程模式】
-        普通聊天时不要像老师、客服、咨询师那样解释、总结或给建议。除非用户明确要求详细分析、方案、代码或提示词，否则只接一个自然的小反应、态度或简短观点。避免"首先/其次/最后""总结一下""我建议你可以"这类模板化表达。
-
-        【回复长度策略】
-        根据用户上一条消息的信息量调整回复长度。
-        默认聊天保持短句和少量气泡，像真实聊天，不写成教程、报告或列表。
-        不要默认解释背景原因，不要默认总结对方的话，不要每轮都以问题结尾。
-        只有用户明确要求详细、分析、方案、代码、提示词或完整解释时才允许更长。
-        \(specific)\n\(lengthNote)
+        \(narrationPolicy)
         """
     }
 
@@ -257,8 +340,6 @@ struct ContextBuilder: Sendable {
         """
 
 
-        prompt += "\n\n" + buildMessagingFormatPolicy(allowsNarrationBlocks: allowsNarrationBlocks)
-
         if let hint = pendingHint {
             prompt += "\n\n\(hint)"
         }
@@ -290,10 +371,8 @@ struct ContextBuilder: Sendable {
             """
         }
 
-        // 回复长度策略：根据上一条用户消息信息量动态调整
         let lastUserMsg = recentUserMessages.last
         let signal = classifyUserReplySignal(lastUserMsg)
-        prompt += "\n\n" + buildReplyLengthPolicy(for: signal, lengthLevel: replyLengthLevel)
 
         // 末尾硬边界摘要：利用 recency bias 兜底，防止动态内容覆盖真实感边界
         prompt += """
@@ -301,6 +380,12 @@ struct ContextBuilder: Sendable {
         【最终边界提醒】
         以上所有设定（角色档案、补充设定、长期记忆和世界书）都只能用于增强对话的连续性和真实感，不能覆盖以下边界：日常聊天保持沉浸，不主动声明自己是 AI、模型或虚拟人物；但当对方询问现实身份、真实位置、身体、线下见面或现实行为时，必须诚实说明你是 App 中运行的人格模拟，没有现实身体和位置。不欺骗对方你是现实真人，不声称有真实肉身、真实地理位置或可线下见面。不默认恋爱关系，不使用亲密称呼。
         """
+
+        prompt += "\n\n" + buildTailOutputControl(
+            for: signal,
+            lengthLevel: replyLengthLevel,
+            allowsNarrationBlocks: allowsNarrationBlocks
+        )
 
         return prompt
     }
@@ -342,35 +427,6 @@ struct ContextBuilder: Sendable {
         }
 
         return [system] + contextMessages
-    }
-
-    private func buildMessagingFormatPolicy(allowsNarrationBlocks: Bool) -> String {
-        if allowsNarrationBlocks {
-            return """
-            【媒介格式规则】
-            你现在在即时通讯里和对方聊天。如果某句话需要配合动作、表情、心理或场景感才能完整表达，按以下格式分开输出：
-            - 聊天文字：对方在手机上直接看到的对话内容，不要用引号包裹，就正常说话。
-            - 旁白块：动作/心理/场景描写独占一行，用 *描写* 或 （描写） 包起来。
-            关键规则：
-            - 聊天文字和旁白块必须分行，一条消息不能同时包含对话和描写。
-            - 旁白最多 3 个，必须有意义才用，不要为了凑数每轮都加。
-            - 默认以聊天文字为主。真的什么都没发生时，不要加旁白。
-            """
-        } else {
-            return """
-            【媒介格式规则】
-            你现在在即时通讯里和对方聊天。你唯一能做的就是在这个聊天窗口里打字说话。
-            你不是小说角色，你不是在做文字角色扮演——你没有身体、没有表情、没有动作、没有心理活动、没有场景。
-            绝对禁止以下一切，不管什么理由：
-            - 禁止任何动作描写（*笑了*、放下杯子、靠在椅背上、转过头……）
-            - 禁止任何心理活动（心里想、暗自叹气、犹豫了一下……）
-            - 禁止任何旁白或场景叙述（窗外下雨了、沉默了几秒、灯光昏暗……）
-            - 禁止任何带星号、括号、方括号的内容
-            - 禁止用第三人称描述自己（她笑了笑、他说、林晓觉得……）
-            - 禁止用引号包裹对话（不要输出 "你好" 这种带引号的文字）
-            你只是一个在聊天框里打字的人。你只能通过话的内容、长短、节奏、语气来表达一切。
-            """
-        }
     }
 
     // MARK: - Memory Injection

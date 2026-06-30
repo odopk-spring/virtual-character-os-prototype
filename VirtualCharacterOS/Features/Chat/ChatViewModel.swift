@@ -336,7 +336,8 @@ final class ChatViewModel {
             let chunks = splitAssistantReply(
                 raw,
                 allowsNarrationBlocks: allowsNarrationBlocks,
-                replySignal: replySignal
+                replySignal: replySignal,
+                replyLengthLevel: replyLengthLevel
             )
 
             // 第一条 chunk 复用占位消息（带 branchID 保护）
@@ -420,7 +421,8 @@ final class ChatViewModel {
     private func splitAssistantReply(
         _ text: String,
         allowsNarrationBlocks: Bool,
-        replySignal: ContextBuilder.ReplySignalStrength
+        replySignal: ContextBuilder.ReplySignalStrength,
+        replyLengthLevel: ContextBuilder.ReplyLengthLevel
     ) -> [String] {
         let prepared = allowsNarrationBlocks
             ? text
@@ -443,40 +445,23 @@ final class ChatViewModel {
         }
         let sentenceSegments = semanticSegments.flatMap { segment in
             ChatNarrationFormatter.narrationText(from: segment) == nil
-                ? splitLongSegmentBySentencePunctuation(segment)
+                ? splitBySentencePunctuation(segment)
                 : [segment]
         }
         let merged = mergeTinyReplyFragments(sentenceSegments)
-
-        // 旁白不计入聊天气泡配额，单独限制
-        var chatSegments: [String] = []
-        var narrationSegments: [String] = []
-        for seg in merged {
-            if ChatNarrationFormatter.narrationText(from: seg) != nil {
-                narrationSegments.append(seg)
-            } else {
-                chatSegments.append(seg)
+            .map { segment in
+                ChatNarrationFormatter.narrationText(from: segment) == nil
+                    ? cleanChatBubble(segment, replyLengthLevel: replyLengthLevel)
+                    : segment
             }
-        }
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-        let maxChat = maxBubbleCount(for: replySignal)
-        let maxNarr = 4
-        let limitedChat = limitReplySegments(chatSegments, maxCount: maxChat)
-        let limitedNarr = limitReplySegments(narrationSegments, maxCount: maxNarr)
-
-        // 按原始顺序交错合并
-        var result: [String] = []
-        var ci = 0, ni = 0
-        for seg in merged {
-            if ChatNarrationFormatter.narrationText(from: seg) != nil {
-                if ni < limitedNarr.count { result.append(limitedNarr[ni]); ni += 1 }
-            } else {
-                if ci < limitedChat.count { result.append(limitedChat[ci]); ci += 1 }
-            }
+        if replyLengthLevel == .long {
+            return merged.isEmpty ? [cleaned] : merged
         }
 
         let questionSuppressed = dropGenericTrailingQuestionIfNeeded(
-            result,
+            merged,
             replySignal: replySignal
         )
         let tutorialSuppressed = dropGenericTutorialTailIfNeeded(
@@ -487,15 +472,15 @@ final class ChatViewModel {
         return tutorialSuppressed.isEmpty ? [cleaned] : tutorialSuppressed
     }
 
-    private func maxBubbleCount(for signal: ContextBuilder.ReplySignalStrength) -> Int {
-        switch signal {
-        case .minimal, .low:
-            return 1
-        case .light, .normal:
-            return 2
-        case .deep:
-            return 3
+    private func cleanChatBubble(
+        _ text: String,
+        replyLengthLevel: ContextBuilder.ReplyLengthLevel
+    ) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard replyLengthLevel == .short, trimmed.last == "。" else {
+            return trimmed
         }
+        return String(trimmed.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func dropGenericTrailingQuestionIfNeeded(
@@ -648,9 +633,7 @@ final class ChatViewModel {
         return before.count >= minBefore && after.count >= minAfter
     }
 
-    private func splitLongSegmentBySentencePunctuation(_ text: String) -> [String] {
-        guard text.count > 44 else { return [text] }
-
+    private func splitBySentencePunctuation(_ text: String) -> [String] {
         var result: [String] = []
         var current = ""
 
@@ -734,6 +717,9 @@ final class ChatViewModel {
         if Self.connectorOnlyFragments.contains(text) {
             return true
         }
+        if hasTerminalSentencePunctuation(text) {
+            return false
+        }
         if Self.allowedShortStandaloneReplies.contains(text) {
             return false
         }
@@ -741,18 +727,10 @@ final class ChatViewModel {
     }
 
     private func shouldAvoidConsecutiveShortBubbles(_ left: String, _ right: String) -> Bool {
-        left.count <= 6 && right.count <= 6 && (left + right).count <= 14
-    }
-
-    private func limitReplySegments(_ segments: [String], maxCount: Int) -> [String] {
-        guard segments.count > maxCount else { return segments }
-
-        var limited = Array(segments.prefix(maxCount - 1))
-        let tail = segments.dropFirst(maxCount - 1).joined()
-        if !tail.isEmpty {
-            limited.append(tail)
+        if hasTerminalSentencePunctuation(left) || hasTerminalSentencePunctuation(right) {
+            return false
         }
-        return limited
+        return left.count <= 6 && right.count <= 6 && (left + right).count <= 14
     }
 
     private static let semanticReplyBreakpoints = [
@@ -763,6 +741,13 @@ final class ChatViewModel {
     private static let strongSentencePunctuation: Set<Character> = [
         "。", "！", "？", "；", "…", "~"
     ]
+
+    private func hasTerminalSentencePunctuation(_ text: String) -> Bool {
+        guard let last = text.trimmingCharacters(in: .whitespacesAndNewlines).last else {
+            return false
+        }
+        return Self.strongSentencePunctuation.contains(last)
+    }
 
     private static let connectorOnlyFragments: Set<String> = [
         "不过", "但是", "而且", "不然", "所以", "那", "其实", "还有", "然后", "反正", "算了"

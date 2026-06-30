@@ -18,7 +18,7 @@ struct ChatTypingIndicatorView: View {
     var body: some View {
         Text("对方输入中\(dots)")
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.primary)
             .lineLimit(1)
             .monospacedDigit()
             .frame(width: 104, alignment: .center)
