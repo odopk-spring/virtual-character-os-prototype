@@ -49,6 +49,7 @@
 		C0636CE33C6FA1604CC75B35 /* OpenAICompatibleProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C058E49ADF89CD92E8D4914 /* OpenAICompatibleProvider.swift */; };
 		C7998B5595C0C035A42EA686 /* ConversationBranch.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06309B586291F75817FAD43 /* ConversationBranch.swift */; };
 		D2C292FF634F6D7729590271 /* ProviderSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CC0182FEC1EC12F548E5401 /* ProviderSettingsView.swift */; };
+		D71FFD596E093384C7F2770A /* ResponseControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB40BE5A5AB0931E96B98BC /* ResponseControl.swift */; };
 		D752D85FAA386108634B7DC6 /* MemoryEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E4C21E091DFAA1EFDF04A0 /* MemoryEditorView.swift */; };
 		D7633D2EDCA22DDE28DAA334 /* WorldBookViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CD5308F3EAF6E6FC91823D /* WorldBookViewModel.swift */; };
 		D8F1E851D21066356D3CAA7F /* WorldBookKeywordSuggestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C10F2A0269BE44B28EA7F1D /* WorldBookKeywordSuggestionService.swift */; };
@@ -109,6 +110,7 @@
 		F005323220FDCCFD6939B4B1 /* MessageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageStore.swift; sourceTree = "<group>"; };
 		F45100E5B8AE48BEC58B14D9 /* CharacterProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterProfileStore.swift; sourceTree = "<group>"; };
 		F87774F3A1E4D4891F3AA6A1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		FAB40BE5A5AB0931E96B98BC /* ResponseControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseControl.swift; sourceTree = "<group>"; };
 		FC2F4B0A3A79673640CF0D21 /* ContextBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextBuilder.swift; sourceTree = "<group>"; };
 		FFB2DF1C18B20B3198FD1ACE /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -197,6 +199,7 @@
 			children = (
 				53E5138C1D38FFA97725A813 /* BranchMessageResolver.swift */,
 				FC2F4B0A3A79673640CF0D21 /* ContextBuilder.swift */,
+				FAB40BE5A5AB0931E96B98BC /* ResponseControl.swift */,
 			);
 			path = Context;
 			sourceTree = "<group>";
@@ -424,6 +427,7 @@
 				58AD37420B42128EE9AA56EE /* ProviderConfig.swift in Sources */,
 				D2C292FF634F6D7729590271 /* ProviderSettingsView.swift in Sources */,
 				01E8C5A09DD95B8D971C3791 /* ProviderSettingsViewModel.swift in Sources */,
+				D71FFD596E093384C7F2770A /* ResponseControl.swift in Sources */,
 				3709AEC8D56154BD02A8BE1A /* VirtualCharacterOSApp.swift in Sources */,
 				0EAFEF7DA761C0E118712B51 /* WorldBookEditorView.swift in Sources */,
 				1FBB514B6F751D5FCE70B236 /* WorldBookEntry.swift in Sources */,

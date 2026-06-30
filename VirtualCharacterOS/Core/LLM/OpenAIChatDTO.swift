@@ -60,7 +60,7 @@ extension OpenAIChatCompletionRequest {
             model: config.modelName,
             messages: messages,
             temperature: request.temperature,
-            maxTokens: request.maxTokens
+            maxTokens: request.maxOutputTokens ?? request.maxTokens
         )
     }
 }
