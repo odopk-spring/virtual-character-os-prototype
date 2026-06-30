@@ -171,7 +171,6 @@ struct ContextBuilder: Sendable {
         worldBookEntries: [WorldBookEntry] = [],
         recentUserMessages: [ChatMessage] = [],
         allowsNarrationBlocks: Bool = false,
-        sceneDetailMode: SceneDetailMode? = nil,
         replyLengthLevel: ReplyLengthLevel = .normal
     ) -> String {
         let formatter = DateFormatter()
@@ -258,8 +257,7 @@ struct ContextBuilder: Sendable {
         """
 
 
-        let resolvedSceneMode = sceneDetailMode ?? (allowsNarrationBlocks ? .light : .off)
-        prompt += "\n\n" + buildMessagingFormatPolicy(sceneMode: resolvedSceneMode)
+        prompt += "\n\n" + buildMessagingFormatPolicy(allowsNarrationBlocks: allowsNarrationBlocks)
 
         if let hint = pendingHint {
             prompt += "\n\n\(hint)"
@@ -315,7 +313,6 @@ struct ContextBuilder: Sendable {
         manualMemories: [MemoryItem] = [],
         worldBookEntries: [WorldBookEntry] = [],
         allowsNarrationBlocks: Bool = false,
-        sceneDetailMode: SceneDetailMode? = nil,
         replyLengthLevel: ReplyLengthLevel = .normal
     ) -> [ChatRequestMessage] {
         let effective = recentMessages
@@ -336,7 +333,6 @@ struct ContextBuilder: Sendable {
                 worldBookEntries: worldBookEntries,
                 recentUserMessages: recentUserMessages,
                 allowsNarrationBlocks: allowsNarrationBlocks,
-                sceneDetailMode: sceneDetailMode,
                 replyLengthLevel: replyLengthLevel
             )
         )
@@ -348,33 +344,19 @@ struct ContextBuilder: Sendable {
         return [system] + contextMessages
     }
 
-    private func buildMessagingFormatPolicy(sceneMode: SceneDetailMode) -> String {
-        switch sceneMode {
-        case .light:
+    private func buildMessagingFormatPolicy(allowsNarrationBlocks: Bool) -> String {
+        if allowsNarrationBlocks {
             return """
             【媒介格式规则】
-            你现在在即时通讯里和对方聊天。可以有极少量动作、状态或场景感，但必须很轻。
-            按以下格式分开输出：
-            - 聊天文字：对方在手机上直接看到的对话内容，不要用引号包裹，就正常说话。
-            - 轻描写块：动作/状态/场景描写独占一行，用 *描写* 或 （描写） 包起来。
-            关键规则：
-            - 聊天文字和旁白块必须分行，一条消息不能同时包含对话和描写。
-            - 轻描写最多 1 句，必须很短、必须有意义，不要每轮都加。
-            - 默认以聊天文字为主。真的什么都没发生时，不要加描写。
-            """
-        case .full:
-            return """
-            【媒介格式规则】
-            你现在在即时通讯里和对方聊天。允许动作、心理或场景描写，但仍要受回复长度控制，不要扩写成小说。
-            按以下格式分开输出：
+            你现在在即时通讯里和对方聊天。如果某句话需要配合动作、表情、心理或场景感才能完整表达，按以下格式分开输出：
             - 聊天文字：对方在手机上直接看到的对话内容，不要用引号包裹，就正常说话。
             - 旁白块：动作/心理/场景描写独占一行，用 *描写* 或 （描写） 包起来。
             关键规则：
             - 聊天文字和旁白块必须分行，一条消息不能同时包含对话和描写。
             - 旁白最多 3 个，必须有意义才用，不要为了凑数每轮都加。
-            - 不要假装你有现实身体、现实位置或能线下见面。
+            - 默认以聊天文字为主。真的什么都没发生时，不要加旁白。
             """
-        case .off:
+        } else {
             return """
             【媒介格式规则】
             你现在在即时通讯里和对方聊天。你唯一能做的就是在这个聊天窗口里打字说话。

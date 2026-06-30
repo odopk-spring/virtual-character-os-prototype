@@ -304,15 +304,10 @@ final class ChatViewModel {
             let supplement = Self.readCharacterSupplement()
             let memories = Self.readManualMemories()
             let worldBook = Self.readWorldBookEntries()
+            let allowsNarrationBlocks = Self.readAllowsNarrationBlocks()
             let replyLengthLevel = Self.readReplyLengthLevel()
-            let sceneMode = Self.readSceneDetailMode()
-            let allowsNarrationBlocks = sceneMode.allowsNarrationBlocks
             let replySignal = contextBuilder.replySignal(
                 for: branchMessages.last(where: { $0.role == .user && $0.status == .sent })
-            )
-            let replyBudget = ReplyBudget.resolve(
-                signal: replySignal,
-                lengthLevel: replyLengthLevel
             )
             let requestMessages = contextBuilder.buildRequestMessages(
                 recentMessages: branchMessages, character: character,
@@ -320,7 +315,6 @@ final class ChatViewModel {
                 manualMemories: memories,
                 worldBookEntries: worldBook,
                 allowsNarrationBlocks: allowsNarrationBlocks,
-                sceneDetailMode: sceneMode,
                 replyLengthLevel: replyLengthLevel
             )
 
@@ -335,32 +329,15 @@ final class ChatViewModel {
             #endif
 
             let config = Self.readConfig()
-            let request = ChatRequest(
-                messages: requestMessages,
-                temperature: 0.8,
-                maxOutputTokens: replyBudget.maxOutputTokens
-            )
+            let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 500)
             let response = try await provider.send(request, config: config)
 
             let raw = response.content
-            let postController = PostGenerationController()
-            let finalText = await applyPostGenerationControl(
-                rawText: raw,
-                controller: postController,
-                budget: replyBudget,
-                sceneMode: sceneMode,
-                config: config
-            )
             let chunks = splitAssistantReply(
-                finalText,
-                sceneMode: sceneMode,
-                replySignal: replySignal,
-                replyBudget: replyBudget
+                raw,
+                allowsNarrationBlocks: allowsNarrationBlocks,
+                replySignal: replySignal
             )
-
-            #if DEBUG
-            print("[ResponseControl] rawChars=\(raw.count) finalChars=\(finalText.count) rewriteTriggered=\(raw != finalText) budgetMode=\(replyBudget.mode.rawValue) sceneMode=\(sceneMode.rawValue)")
-            #endif
 
             // 第一条 chunk 复用占位消息（带 branchID 保护）
             let firstChunk = chunks[0]
@@ -412,36 +389,6 @@ final class ChatViewModel {
         typingIndicatorBranchID = nil
     }
 
-    private func applyPostGenerationControl(
-        rawText: String,
-        controller: PostGenerationController,
-        budget: ReplyBudget,
-        sceneMode: SceneDetailMode,
-        config: ProviderConfig
-    ) async -> String {
-        guard let reason = controller.needsRewrite(
-            rawText: rawText,
-            budget: budget,
-            sceneMode: sceneMode
-        ) else {
-            return rawText
-        }
-
-        do {
-            let rewriteRequest = controller.buildRewriteRequest(
-                rawText: rawText,
-                budget: budget,
-                sceneMode: sceneMode,
-                reason: reason
-            )
-            let rewritten = try await provider.send(rewriteRequest, config: config).content
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return rewritten.isEmpty ? rawText : rewritten
-        } catch {
-            return rawText
-        }
-    }
-
     private func failMessage(id: UUID, message: String, branchID: UUID) {
         var failed = ChatMessage(id: id, role: .assistant, content: "", status: .failed,
                                   branchID: branchID)
@@ -472,11 +419,9 @@ final class ChatViewModel {
     /// 将模型回复拆成少量气泡；不强制多气泡，优先保留自然语义边界。
     private func splitAssistantReply(
         _ text: String,
-        sceneMode: SceneDetailMode,
-        replySignal: ContextBuilder.ReplySignalStrength,
-        replyBudget: ReplyBudget
+        allowsNarrationBlocks: Bool,
+        replySignal: ContextBuilder.ReplySignalStrength
     ) -> [String] {
-        let allowsNarrationBlocks = sceneMode.allowsNarrationBlocks
         let prepared = allowsNarrationBlocks
             ? text
             : ChatNarrationFormatter.removingNarrationMarkup(from: text)
@@ -514,8 +459,8 @@ final class ChatViewModel {
             }
         }
 
-        let maxChat = replyBudget.maxBubbleCount
-        let maxNarr = sceneMode.maxNarrationSegments(for: replyBudget)
+        let maxChat = maxBubbleCount(for: replySignal)
+        let maxNarr = 4
         let limitedChat = limitReplySegments(chatSegments, maxCount: maxChat)
         let limitedNarr = limitReplySegments(narrationSegments, maxCount: maxNarr)
 
@@ -800,7 +745,6 @@ final class ChatViewModel {
     }
 
     private func limitReplySegments(_ segments: [String], maxCount: Int) -> [String] {
-        guard maxCount > 0 else { return [] }
         guard segments.count > maxCount else { return segments }
 
         var limited = Array(segments.prefix(maxCount - 1))
@@ -892,15 +836,6 @@ final class ChatViewModel {
 
     static func readAllowsNarrationBlocks() -> Bool {
         UserDefaults.standard.bool(forKey: ChatNarrationFormatter.settingsKey)
-    }
-
-    static func readSceneDetailMode() -> SceneDetailMode {
-        let defaults = UserDefaults.standard
-        if let raw = defaults.string(forKey: "ChatSettings.sceneDetailMode"),
-           let mode = SceneDetailMode(rawValue: raw) {
-            return mode
-        }
-        return defaults.bool(forKey: ChatNarrationFormatter.settingsKey) ? .light : .off
     }
 
     static func readReplyLengthLevel() -> ContextBuilder.ReplyLengthLevel {
