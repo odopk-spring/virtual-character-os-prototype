@@ -176,7 +176,7 @@ struct PostGenerationController {
     }
 
     private func containsSceneDescription(_ text: String) -> Bool {
-        isStandaloneNarrationMarkup(text) || sceneDescriptionHitCount(text) > 0
+        sceneDescriptionHitCount(text) > 0
     }
 
     private func sceneDescriptionHitCount(_ text: String) -> Int {
@@ -207,22 +207,6 @@ struct PostGenerationController {
             }
         }
         return false
-    }
-
-    private func isStandaloneNarrationMarkup(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else { return false }
-
-        let pairs: [(Character, Character)] = [
-            ("*", "*"),
-            ("（", "）"),
-            ("(", ")"),
-            ("【", "】")
-        ]
-
-        return pairs.contains { pair in
-            trimmed.first == pair.0 && trimmed.last == pair.1
-        }
     }
 
     private func containsThirdPersonAction(_ text: String) -> Bool {

@@ -25,13 +25,11 @@ enum ChatNarrationFormatter {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !inner.isEmpty, inner.count <= 80 else { continue }
             // 去除旁白内可能带上的引号包裹
-            let normalized = inner
+            return inner
                 .replacingOccurrences(of: "\"", with: "")
                 .replacingOccurrences(of: "\u{201C}", with: "") // "
                 .replacingOccurrences(of: "\u{201D}", with: "") // "
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty else { continue }
-            return normalized
         }
 
         return nil
