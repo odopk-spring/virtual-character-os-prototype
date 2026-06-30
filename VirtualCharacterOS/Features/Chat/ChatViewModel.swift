@@ -343,25 +343,19 @@ final class ChatViewModel {
             let response = try await provider.send(request, config: config)
 
             let raw = response.content
-            let postController = PostGenerationController()
-            let finalText = await applyPostGenerationControl(
+            let controlled = await applyOutputControl(
                 rawText: raw,
-                controller: postController,
                 budget: replyBudget,
                 sceneMode: sceneMode,
+                replySignal: replySignal,
                 config: config
             )
             let chunks = renderableAssistantChunks(
-                from: splitAssistantReply(
-                    finalText,
-                    sceneMode: sceneMode,
-                    replySignal: replySignal,
-                    replyBudget: replyBudget
-                )
+                from: controlled.toRenderableChunks()
             )
 
             #if DEBUG
-            print("[ResponseControl] rawChars=\(raw.count) finalChars=\(finalText.count) rewriteTriggered=\(raw != finalText) budgetMode=\(replyBudget.mode.rawValue) sceneMode=\(sceneMode.rawValue)")
+            print("[OutputControl] rawChars=\(controlled.rawChars) finalChars=\(controlled.finalChars) chatSegments=\(controlled.chatSegmentCount) narrationSegments=\(controlled.narrationSegmentCount) invalidSegments=\(controlled.invalidSegmentCount) rewriteTriggered=\(controlled.rewriteTriggered) fallbackUsed=\(controlled.fallbackUsed) budgetMode=\(replyBudget.mode.rawValue) sceneMode=\(sceneMode.rawValue)")
             #endif
 
             // 第一条 chunk 复用占位消息（带 branchID 保护）
@@ -414,33 +408,172 @@ final class ChatViewModel {
         typingIndicatorBranchID = nil
     }
 
-    private func applyPostGenerationControl(
+    private func applyOutputControl(
         rawText: String,
-        controller: PostGenerationController,
         budget: ReplyBudget,
         sceneMode: SceneDetailMode,
+        replySignal: ContextBuilder.ReplySignalStrength,
         config: ProviderConfig
-    ) async -> String {
-        guard let reason = controller.needsRewrite(
-            rawText: rawText,
+    ) async -> AssistantOutputControlResult {
+        let parser = AssistantOutputParser()
+        let validator = AssistantOutputValidator()
+        let limiter = ReplySegmentLimiter()
+        let controller = PostGenerationController()
+
+        let parsed = parser.parse(rawText, sceneMode: sceneMode)
+        let validation = validator.validate(
+            segments: parsed,
             budget: budget,
             sceneMode: sceneMode
-        ) else {
-            return rawText
+        )
+        var invalidSegments = validation.invalidSegmentCount
+        var selectedSegments = validation.segments
+        var rewriteTriggered = false
+        let rewriteReason = validation.rewriteReason
+
+        if validation.fallbackNeeded {
+            return fallbackOutputControlResult(
+                rawText: rawText,
+                invalidSegments: invalidSegments,
+                rewriteTriggered: false,
+                rewriteReason: rewriteReason
+            )
         }
 
-        do {
-            let rewriteRequest = controller.buildRewriteRequest(
+        if let reason = validation.rewriteReason, budget.allowRewrite {
+            do {
+                let rewriteRequest = controller.buildRewriteRequest(
+                    rawText: rawText,
+                    budget: budget,
+                    sceneMode: sceneMode,
+                    reason: reason
+                )
+                let rewritten = try await provider.send(rewriteRequest, config: config).content
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                rewriteTriggered = true
+
+                if rewritten.isEmpty {
+                    if shouldFallbackWhenRewriteFails(reason) {
+                        return fallbackOutputControlResult(
+                            rawText: rawText,
+                            invalidSegments: invalidSegments,
+                            rewriteTriggered: rewriteTriggered,
+                            rewriteReason: reason
+                        )
+                    }
+                } else {
+                    let rewrittenValidation = validator.validate(
+                        segments: parser.parse(rewritten, sceneMode: sceneMode),
+                        budget: budget,
+                        sceneMode: sceneMode
+                    )
+                    invalidSegments += rewrittenValidation.invalidSegmentCount
+
+                    if rewrittenValidation.fallbackNeeded ||
+                        shouldFallbackAfterRewrite(reason: rewrittenValidation.rewriteReason) {
+                        if shouldFallbackWhenRewriteFails(reason) {
+                            return fallbackOutputControlResult(
+                                rawText: rawText,
+                                invalidSegments: invalidSegments,
+                                rewriteTriggered: rewriteTriggered,
+                                rewriteReason: rewrittenValidation.rewriteReason ?? reason
+                            )
+                        }
+                    } else {
+                        selectedSegments = rewrittenValidation.segments
+                    }
+                }
+            } catch {
+                if shouldFallbackWhenRewriteFails(reason) {
+                    return fallbackOutputControlResult(
+                        rawText: rawText,
+                        invalidSegments: invalidSegments,
+                        rewriteTriggered: rewriteTriggered,
+                        rewriteReason: reason
+                    )
+                }
+            }
+        }
+
+        let expanded = expandChatSegments(selectedSegments, replySignal: replySignal)
+        let limited = limiter.limit(expanded, budget: budget, sceneMode: sceneMode)
+        let finalValidation = validator.validate(
+            segments: limited,
+            budget: budget,
+            sceneMode: sceneMode
+        )
+        invalidSegments += finalValidation.invalidSegmentCount
+
+        if finalValidation.fallbackNeeded ||
+            shouldFallbackAfterRewrite(reason: finalValidation.rewriteReason) {
+            return fallbackOutputControlResult(
                 rawText: rawText,
-                budget: budget,
-                sceneMode: sceneMode,
-                reason: reason
+                invalidSegments: invalidSegments,
+                rewriteTriggered: rewriteTriggered,
+                rewriteReason: finalValidation.rewriteReason ?? rewriteReason
             )
-            let rewritten = try await provider.send(rewriteRequest, config: config).content
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return rewritten.isEmpty ? rawText : rewritten
-        } catch {
-            return rawText
+        }
+
+        let finalSegments = finalValidation.segments
+        return AssistantOutputControlResult(
+            segments: finalSegments,
+            rawChars: rawText.count,
+            finalChars: finalSegments.reduce(0) { $0 + $1.text.count },
+            invalidSegmentCount: invalidSegments,
+            rewriteTriggered: rewriteTriggered,
+            fallbackUsed: false,
+            rewriteReason: rewriteReason
+        )
+    }
+
+    private func shouldFallbackWhenRewriteFails(_ reason: RewriteReason) -> Bool {
+        switch reason {
+        case .sceneDescriptionNotAllowed, .narrationOnlyNotAllowed, .invalidEmptyOutput:
+            return true
+        case .sceneDescriptionTooHeavy, .tooLong:
+            return false
+        }
+    }
+
+    private func shouldFallbackAfterRewrite(reason: RewriteReason?) -> Bool {
+        switch reason {
+        case .sceneDescriptionNotAllowed, .narrationOnlyNotAllowed, .invalidEmptyOutput:
+            return true
+        case .sceneDescriptionTooHeavy, .tooLong, nil:
+            return false
+        }
+    }
+
+    private func fallbackOutputControlResult(
+        rawText: String,
+        invalidSegments: Int,
+        rewriteTriggered: Bool,
+        rewriteReason: RewriteReason?
+    ) -> AssistantOutputControlResult {
+        let fallback = Self.emptyAssistantReplyFallback
+        return AssistantOutputControlResult(
+            segments: [.chat(fallback)],
+            rawChars: rawText.count,
+            finalChars: fallback.count,
+            invalidSegmentCount: invalidSegments,
+            rewriteTriggered: rewriteTriggered,
+            fallbackUsed: true,
+            rewriteReason: rewriteReason
+        )
+    }
+
+    private func expandChatSegments(
+        _ segments: [AssistantOutputSegment],
+        replySignal: ContextBuilder.ReplySignalStrength
+    ) -> [AssistantOutputSegment] {
+        segments.flatMap { segment -> [AssistantOutputSegment] in
+            switch segment {
+            case .chat(let text):
+                return splitAssistantReply(text, replySignal: replySignal)
+                    .map { .chat($0) }
+            case .narration:
+                return [segment]
+            }
         }
     }
 
@@ -480,11 +613,11 @@ final class ChatViewModel {
         let cleaned = normalizeAssistantReply(text)
         guard !cleaned.isEmpty else { return nil }
 
-        if ChatNarrationFormatter.narrationText(from: cleaned) != nil {
+        if ChatNarrationFormatter.normalizedNarrationText(from: cleaned) != nil {
             return cleaned
         }
 
-        if Self.isStandaloneNarrationMarkup(cleaned) {
+        if ChatNarrationFormatter.isNarrationMarkup(cleaned) {
             return nil
         }
 
@@ -494,66 +627,18 @@ final class ChatViewModel {
     /// 将模型回复拆成少量气泡；不强制多气泡，优先保留自然语义边界。
     private func splitAssistantReply(
         _ text: String,
-        sceneMode: SceneDetailMode,
-        replySignal: ContextBuilder.ReplySignalStrength,
-        replyBudget: ReplyBudget
+        replySignal: ContextBuilder.ReplySignalStrength
     ) -> [String] {
-        let allowsNarrationBlocks = sceneMode.allowsNarrationBlocks
-        let prepared = allowsNarrationBlocks
-            ? text
-            : ChatNarrationFormatter.removingNarrationMarkup(from: text)
-        let cleaned = normalizeAssistantReply(prepared)
+        let cleaned = normalizeAssistantReply(text)
         guard !cleaned.isEmpty else { return [Self.emptyAssistantReplyFallback] }
 
-        let narrationAwareSegments = allowsNarrationBlocks
-            ? ChatNarrationFormatter.splitNarrationSegments(cleaned)
-            : [cleaned]
-        let newlineSegments = narrationAwareSegments.flatMap { segment in
-            ChatNarrationFormatter.narrationText(from: segment) == nil
-                ? splitByNewlineBlocks(segment)
-                : [segment]
-        }
-        let semanticSegments = newlineSegments.flatMap { segment in
-            ChatNarrationFormatter.narrationText(from: segment) == nil
-                ? splitBySemanticBreakpoints(segment)
-                : [segment]
-        }
-        let sentenceSegments = semanticSegments.flatMap { segment in
-            ChatNarrationFormatter.narrationText(from: segment) == nil
-                ? splitLongSegmentBySentencePunctuation(segment)
-                : [segment]
-        }
+        let newlineSegments = splitByNewlineBlocks(cleaned)
+        let semanticSegments = newlineSegments.flatMap { splitBySemanticBreakpoints($0) }
+        let sentenceSegments = semanticSegments.flatMap { splitLongSegmentBySentencePunctuation($0) }
         let merged = mergeTinyReplyFragments(sentenceSegments)
 
-        // 旁白不计入聊天气泡配额，单独限制
-        var chatSegments: [String] = []
-        var narrationSegments: [String] = []
-        for seg in merged {
-            if ChatNarrationFormatter.narrationText(from: seg) != nil {
-                narrationSegments.append(seg)
-            } else {
-                chatSegments.append(seg)
-            }
-        }
-
-        let maxChat = replyBudget.maxBubbleCount
-        let maxNarr = sceneMode.maxNarrationSegments(for: replyBudget)
-        let limitedChat = limitReplySegments(chatSegments, maxCount: maxChat)
-        let limitedNarr = limitReplySegments(narrationSegments, maxCount: maxNarr)
-
-        // 按原始顺序交错合并
-        var result: [String] = []
-        var ci = 0, ni = 0
-        for seg in merged {
-            if ChatNarrationFormatter.narrationText(from: seg) != nil {
-                if ni < limitedNarr.count { result.append(limitedNarr[ni]); ni += 1 }
-            } else {
-                if ci < limitedChat.count { result.append(limitedChat[ci]); ci += 1 }
-            }
-        }
-
         let questionSuppressed = dropGenericTrailingQuestionIfNeeded(
-            result,
+            merged,
             replySignal: replySignal
         )
         let tutorialSuppressed = dropGenericTutorialTailIfNeeded(
@@ -565,17 +650,6 @@ final class ChatViewModel {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return finalSegments.isEmpty ? [cleaned] : finalSegments
-    }
-
-    private func maxBubbleCount(for signal: ContextBuilder.ReplySignalStrength) -> Int {
-        switch signal {
-        case .minimal, .low:
-            return 1
-        case .light, .normal:
-            return 2
-        case .deep:
-            return 3
-        }
     }
 
     private func dropGenericTrailingQuestionIfNeeded(
@@ -824,18 +898,6 @@ final class ChatViewModel {
         left.count <= 6 && right.count <= 6 && (left + right).count <= 14
     }
 
-    private func limitReplySegments(_ segments: [String], maxCount: Int) -> [String] {
-        guard maxCount > 0 else { return [] }
-        guard segments.count > maxCount else { return segments }
-
-        var limited = Array(segments.prefix(maxCount - 1))
-        let tail = segments.dropFirst(maxCount - 1).joined()
-        if !tail.isEmpty {
-            limited.append(tail)
-        }
-        return limited
-    }
-
     private static let semanticReplyBreakpoints = [
         "我刚才", "不过", "但是", "而且", "不然", "所以", "下次",
         "其实", "还有", "然后", "反正", "算了", "那"
@@ -854,22 +916,6 @@ final class ChatViewModel {
     ]
 
     private static let emptyAssistantReplyFallback = "我在。"
-
-    private static func isStandaloneNarrationMarkup(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else { return false }
-
-        let pairs: [(Character, Character)] = [
-            ("*", "*"),
-            ("（", "）"),
-            ("(", ")"),
-            ("【", "】")
-        ]
-
-        return pairs.contains { pair in
-            trimmed.first == pair.0 && trimmed.last == pair.1
-        }
-    }
 
     private static let genericTrailingQuestions: Set<String> = [
         "你呢？",

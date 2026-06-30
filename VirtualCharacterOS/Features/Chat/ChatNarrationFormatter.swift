@@ -9,9 +9,37 @@ enum ChatNarrationFormatter {
     }
 
     static func narrationText(from text: String) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2 else { return nil }
+        normalizedNarrationText(from: text)
+    }
 
+    static func isNarrationMarkup(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return narrationDelimiterPair(for: trimmed) != nil
+    }
+
+    static func normalizedNarrationText(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2,
+              narrationDelimiterPair(for: trimmed) != nil else {
+            return nil
+        }
+
+        let inner = String(trimmed.dropFirst().dropLast())
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !inner.isEmpty, inner.count <= 80 else { return nil }
+
+        // 去除旁白内可能带上的引号包裹
+        let normalized = inner
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "\u{201C}", with: "") // "
+            .replacingOccurrences(of: "\u{201D}", with: "") // "
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return normalized
+    }
+
+    private static func narrationDelimiterPair(for trimmed: String) -> (open: Character, close: Character)? {
+        guard trimmed.count >= 2 else { return nil }
         let pairs: [(Character, Character)] = [
             ("*", "*"),
             ("（", "）"),
@@ -21,19 +49,8 @@ enum ChatNarrationFormatter {
 
         for pair in pairs {
             guard trimmed.first == pair.0, trimmed.last == pair.1 else { continue }
-            let inner = String(trimmed.dropFirst().dropLast())
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !inner.isEmpty, inner.count <= 80 else { continue }
-            // 去除旁白内可能带上的引号包裹
-            let normalized = inner
-                .replacingOccurrences(of: "\"", with: "")
-                .replacingOccurrences(of: "\u{201C}", with: "") // "
-                .replacingOccurrences(of: "\u{201D}", with: "") // "
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty else { continue }
-            return normalized
+            return (open: pair.0, close: pair.1)
         }
-
         return nil
     }
 
