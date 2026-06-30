@@ -19,7 +19,7 @@ struct LocalServerVoiceProvider: VoiceProvider {
         guard !trimmedText.isEmpty else { throw VoicePlaybackError.emptyText }
         guard settings.hasPlayableConfiguration else { throw VoicePlaybackError.missingConfiguration }
         guard let baseURL = settings.serverBaseURL else { throw VoicePlaybackError.invalidServerURL }
-        guard baseURL.scheme?.lowercased() == "https" else { throw VoicePlaybackError.insecureServerURL }
+        guard Self.isAllowedServerURL(baseURL) else { throw VoicePlaybackError.insecureServerURL }
 
         let key = cache.cacheKey(text: trimmedText, settings: settings, readMode: readMode)
         if let cached = cache.existingAudioURL(for: key) {
@@ -55,6 +55,14 @@ struct LocalServerVoiceProvider: VoiceProvider {
         }
 
         return try cache.storeAudio(data, for: key)
+    }
+
+    private static func isAllowedServerURL(_ url: URL) -> Bool {
+        let scheme = url.scheme?.lowercased()
+        if scheme == "https" { return true }
+        guard scheme == "http" else { return false }
+        let host = url.host?.lowercased()
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
     }
 }
 

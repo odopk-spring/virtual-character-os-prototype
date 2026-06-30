@@ -62,3 +62,5 @@ Config/Secrets/
 logs/
 tmp/
 temp/
+__pycache__/
+.venv/

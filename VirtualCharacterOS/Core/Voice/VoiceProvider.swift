@@ -26,7 +26,7 @@ enum VoicePlaybackError: LocalizedError {
         case .invalidServerURL:
             return "语音服务地址无效。"
         case .insecureServerURL:
-            return "语音服务地址需要使用 HTTPS。"
+            return "语音服务地址需要使用 HTTPS；本地开发可用 localhost 或 127.0.0.1。"
         case .emptyText:
             return "没有可播放的文本。"
         case .emptyAudio:
