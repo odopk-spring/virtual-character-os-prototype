@@ -137,14 +137,22 @@ struct ProviderSettingsView: View {
                 Toggle("语音消息", isOn: $viewModel.voiceEnabled)
 
                 if viewModel.voiceEnabled {
-                    TextField("TTS Server URL", text: $viewModel.voiceServerBaseURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    Picker("语音引擎", selection: $viewModel.voiceEngine) {
+                        ForEach(VoiceEngine.allCases) { engine in
+                            Text(engine.title).tag(engine)
+                        }
+                    }
 
-                    TextField("Voice ID", text: $viewModel.voiceID)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    if viewModel.voiceEngine == .localServer {
+                        TextField("TTS Server URL", text: $viewModel.voiceServerBaseURL)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+
+                        TextField("Voice ID", text: $viewModel.voiceID)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -158,7 +166,7 @@ struct ProviderSettingsView: View {
 
                     Toggle("朗读旁白", isOn: $viewModel.voiceReadsNarration)
 
-                    Text("开启后，assistant 正文会显示为语音条；点击播放时请求你的 TTS 服务生成音频，文字转录仍显示在语音条下方。服务地址需使用 HTTPS。")
+                    Text(viewModel.voiceEngine == .onDevice ? "开启后，assistant 正文会显示为语音条；点击播放时由 iPhone 本地语音直接朗读，文字转录仍显示在语音条下方。" : "开启后，assistant 正文会显示为语音条；点击播放时请求你的 TTS 服务生成音频，文字转录仍显示在语音条下方。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -253,6 +261,9 @@ struct ProviderSettingsView: View {
             viewModel.saveChatDisplaySettings()
         }
         .onChange(of: viewModel.voiceEnabled) { _, _ in
+            viewModel.saveVoiceSettings()
+        }
+        .onChange(of: viewModel.voiceEngine) { _, _ in
             viewModel.saveVoiceSettings()
         }
         .onChange(of: viewModel.voiceServerBaseURL) { _, _ in

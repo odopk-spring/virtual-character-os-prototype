@@ -19,6 +19,7 @@ final class ProviderSettingsViewModel {
     var allowsNarrationBlocks: Bool
     var replyLengthLevel: ContextBuilder.ReplyLengthLevel
     var voiceEnabled: Bool
+    var voiceEngine: VoiceEngine
     var voiceServerBaseURL: String
     var voiceID: String
     var voiceSpeed: Double
@@ -48,6 +49,7 @@ final class ProviderSettingsViewModel {
         self.replyLengthLevel = ContextBuilder.ReplyLengthLevel(rawValue: levelRaw) ?? .normal
         let voiceSettings = VoiceSettings.load(defaults: defaults)
         self.voiceEnabled = voiceSettings.isEnabled
+        self.voiceEngine = voiceSettings.engine
         self.voiceServerBaseURL = voiceSettings.serverBaseURLString
         self.voiceID = voiceSettings.voiceID
         self.voiceSpeed = voiceSettings.speed
@@ -111,6 +113,7 @@ final class ProviderSettingsViewModel {
     func saveVoiceSettings() {
         VoiceSettings(
             isEnabled: voiceEnabled,
+            engine: voiceEngine,
             serverBaseURLString: voiceServerBaseURL,
             voiceID: voiceID,
             speed: voiceSpeed,

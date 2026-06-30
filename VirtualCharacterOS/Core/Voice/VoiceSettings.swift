@@ -1,7 +1,24 @@
 import Foundation
 
+enum VoiceEngine: String, CaseIterable, Identifiable, Sendable {
+    case onDevice
+    case localServer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .onDevice:
+            return "iPhone 本地语音"
+        case .localServer:
+            return "本地/私有 TTS 服务"
+        }
+    }
+}
+
 struct VoiceSettings: Equatable, Sendable {
     var isEnabled: Bool
+    var engine: VoiceEngine
     var serverBaseURLString: String
     var voiceID: String
     var speed: Double
@@ -19,6 +36,7 @@ struct VoiceSettings: Equatable, Sendable {
 
     static let disabled = VoiceSettings(
         isEnabled: false,
+        engine: .onDevice,
         serverBaseURLString: "",
         voiceID: "",
         speed: 1.0,
@@ -27,8 +45,10 @@ struct VoiceSettings: Equatable, Sendable {
 
     static func load(defaults: UserDefaults = .standard) -> VoiceSettings {
         let savedSpeed = defaults.double(forKey: speedKey)
+        let engineRaw = defaults.string(forKey: engineKey) ?? ""
         return VoiceSettings(
             isEnabled: defaults.bool(forKey: enabledKey),
+            engine: VoiceEngine(rawValue: engineRaw) ?? .onDevice,
             serverBaseURLString: defaults.string(forKey: serverBaseURLKey) ?? "",
             voiceID: defaults.string(forKey: voiceIDKey) ?? "",
             speed: savedSpeed > 0 ? savedSpeed : 1.0,
@@ -38,6 +58,7 @@ struct VoiceSettings: Equatable, Sendable {
 
     func save(defaults: UserDefaults = .standard) {
         defaults.set(isEnabled, forKey: Self.enabledKey)
+        defaults.set(engine.rawValue, forKey: Self.engineKey)
         defaults.set(serverBaseURLString.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.serverBaseURLKey)
         defaults.set(voiceID.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.voiceIDKey)
         defaults.set(speed, forKey: Self.speedKey)
@@ -45,6 +66,7 @@ struct VoiceSettings: Equatable, Sendable {
     }
 
     static let enabledKey = "VoiceSettings.enabled"
+    static let engineKey = "VoiceSettings.engine"
     static let serverBaseURLKey = "VoiceSettings.serverBaseURL"
     static let voiceIDKey = "VoiceSettings.voiceID"
     static let speedKey = "VoiceSettings.speed"
