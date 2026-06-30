@@ -34,7 +34,7 @@ struct ChatBubbleView: View {
 
     var body: some View {
         if isAssistantPlaceholder {
-            Color.clear.frame(height: 0)
+            assistantTypingPlaceholder
         } else if let narrationText {
             narrationBlock(narrationText)
         } else if isSelectionMode && message.status == .sent {
@@ -62,6 +62,20 @@ struct ChatBubbleView: View {
             }
             .padding(.horizontal, ChatUIStyle.pageHorizontalPadding)
         }
+    }
+
+    private var assistantTypingPlaceholder: some View {
+        HStack(alignment: .top, spacing: ChatUIStyle.avatarToBubbleGap) {
+            avatarView(for: .assistant)
+            ChatTypingIndicatorView()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(ChatUIStyle.assistantBubble)
+                .clipShape(RoundedRectangle(cornerRadius: ChatUIStyle.bubbleCornerRadius))
+            Spacer(minLength: 36)
+        }
+        .padding(.horizontal, ChatUIStyle.pageHorizontalPadding)
+        .accessibilityLabel("对方输入中")
     }
 
     private func narrationBlock(_ text: String) -> some View {

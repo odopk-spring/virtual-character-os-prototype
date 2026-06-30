@@ -27,13 +27,14 @@ struct ChatInputBar: View {
                 }
 
                 // 中间：输入框
-                TextField("", text: $text)
+                TextField("输入消息", text: $text)
                     .font(.system(size: 16))
+                    .foregroundStyle(Color(red: 17/255, green: 17/255, blue: 17/255))
+                    .tint(.blue)
                     .padding(.horizontal, 12)
                     .frame(height: ChatUIStyle.inputFieldHeight)
                     .background(.white)
                     .clipShape(RoundedRectangle(cornerRadius: ChatUIStyle.inputFieldCornerRadius))
-                    .disabled(isLoading)
                     .onSubmit {
                         if hasText { onSend() }
                     }
