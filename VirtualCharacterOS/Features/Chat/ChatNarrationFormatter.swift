@@ -45,11 +45,9 @@ enum ChatNarrationFormatter {
 
         while index < trimmed.endIndex {
             if let marker = marker(at: index, in: trimmed),
-               isLineBoundaryBefore(index, in: trimmed),
                let close = trimmed[index...].dropFirst().firstIndex(of: marker.close) {
                 let candidate = String(trimmed[index...close])
-                if isLineBoundaryAfter(close, in: trimmed),
-                   narrationText(from: candidate) != nil {
+                if narrationText(from: candidate) != nil {
                     appendIfNotEmpty(buffer, to: &result)
                     result.append(candidate)
                     buffer = ""
@@ -120,17 +118,5 @@ enum ChatNarrationFormatter {
         case "【": return ("【", "】")
         default: return nil
         }
-    }
-
-    private static func isLineBoundaryBefore(_ index: String.Index, in text: String) -> Bool {
-        guard index > text.startIndex else { return true }
-        let previous = text.index(before: index)
-        return text[previous] == "\n" || text[previous] == "\r"
-    }
-
-    private static func isLineBoundaryAfter(_ index: String.Index, in text: String) -> Bool {
-        let next = text.index(after: index)
-        guard next < text.endIndex else { return true }
-        return text[next] == "\n" || text[next] == "\r"
     }
 }
