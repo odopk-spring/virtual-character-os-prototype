@@ -7,6 +7,7 @@ final class VoicePlaybackCoordinator {
     private let provider: any VoiceProvider
     private var player: AVPlayer?
     private let speechSynthesizer = AVSpeechSynthesizer()
+    private var isOnDeviceSpeaking = false
     private var playbackEndObserver: NSObjectProtocol?
 
     var activeMessageID: UUID?
@@ -19,7 +20,7 @@ final class VoicePlaybackCoordinator {
 
     func isPlaying(messageID: UUID) -> Bool {
         activeMessageID == messageID
-            && (player?.timeControlStatus == .playing || speechSynthesizer.isSpeaking)
+            && (player?.timeControlStatus == .playing || isOnDeviceSpeaking)
     }
 
     func isLoading(messageID: UUID) -> Bool {
@@ -32,7 +33,7 @@ final class VoicePlaybackCoordinator {
 
     func togglePlayback(for message: ChatMessage, settings: VoiceSettings) {
         if activeMessageID == message.id,
-           player?.timeControlStatus == .playing {
+           (player?.timeControlStatus == .playing || isOnDeviceSpeaking) {
             stop()
             return
         }
@@ -47,6 +48,7 @@ final class VoicePlaybackCoordinator {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
+        isOnDeviceSpeaking = false
         player = nil
         activeMessageID = nil
         loadingMessageID = nil
@@ -103,18 +105,21 @@ final class VoicePlaybackCoordinator {
         utterance.rate = Float(0.48 * settings.speed)
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
+        isOnDeviceSpeaking = true
         speechSynthesizer.speak(utterance)
         loadingMessageID = nil
         errorMessage = nil
-        scheduleOnDevicePlaybackRefresh(messageID: messageID, text: text)
+        scheduleOnDevicePlaybackRefresh(messageID: messageID)
     }
 
-    private func scheduleOnDevicePlaybackRefresh(messageID: UUID, text: String) {
-        let estimatedSeconds = min(max(Double(text.count) * 0.18, 1.2), 90)
+    private func scheduleOnDevicePlaybackRefresh(messageID: UUID) {
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(estimatedSeconds * 1_000_000_000))
-            if activeMessageID == messageID, !speechSynthesizer.isSpeaking {
-                stop()
+            while activeMessageID == messageID, isOnDeviceSpeaking {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                if !speechSynthesizer.isSpeaking {
+                    stop()
+                    return
+                }
             }
         }
     }

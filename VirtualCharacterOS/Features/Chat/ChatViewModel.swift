@@ -62,34 +62,50 @@ final class ChatViewModel {
             role: .user, content: trimmed, status: .sent,
             branchID: activeBranchID
         )
-        do {
-            try store.saveMessage(userMessage)
-            messages.append(userMessage)
-        } catch {
-            errorMessage = "消息保存失败"
-            return
-        }
+        messages.append(userMessage)
+
         let assistantID = UUID()
         let assistantPlaceholder = ChatMessage(
             id: assistantID, role: .assistant, content: "", status: .sending,
             branchID: activeBranchID
         )
-        do {
-            try store.saveMessage(assistantPlaceholder)
-            messages.append(assistantPlaceholder)
-        } catch {
-            errorMessage = "消息保存失败"
-            return
-        }
+        messages.append(assistantPlaceholder)
+
         isLoading = true
         typingIndicatorBranchID = activeBranchID
         errorMessage = nil
 
         let capturedID = assistantID
         let capturedBranchID = activeBranchID
+        let capturedUserMessage = userMessage
+        let capturedPlaceholder = assistantPlaceholder
         Task { @MainActor in
+            await Task.yield()
+            do {
+                try await Task.detached(priority: .userInitiated) { [store] in
+                    try Self.persistOutgoingMessages(
+                        [capturedUserMessage, capturedPlaceholder],
+                        store: store
+                    )
+                }.value
+            } catch {
+                messages.removeAll { $0.id == capturedUserMessage.id || $0.id == capturedPlaceholder.id }
+                isLoading = false
+                typingIndicatorBranchID = nil
+                errorMessage = "消息保存失败"
+                return
+            }
             await callLLM(assistantID: capturedID, branchID: capturedBranchID)
         }
+    }
+
+    nonisolated private static func persistOutgoingMessages(
+        _ outgoingMessages: [ChatMessage],
+        store: any MessageStore
+    ) throws {
+        var persisted = try store.loadMessages()
+        persisted.append(contentsOf: outgoingMessages)
+        try store.replaceAllMessages(persisted)
     }
 
     func loadMessages() {
