@@ -16,6 +16,7 @@ enum VoicePlaybackError: LocalizedError {
     case emptyText
     case emptyAudio
     case serverError(Int)
+    case network(URLError)
 
     var errorDescription: String? {
         switch self {
@@ -33,6 +34,17 @@ enum VoicePlaybackError: LocalizedError {
             return "语音服务没有返回音频。"
         case .serverError(let statusCode):
             return "语音服务请求失败（\(statusCode)）。"
+        case .network(let error):
+            switch error.code {
+            case .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet:
+                return "连不上语音服务。真机测试请用 Mac 的局域网 IP，并用 --host 0.0.0.0 启动服务。"
+            case .timedOut:
+                return "语音服务响应超时。"
+            case .appTransportSecurityRequiresSecureConnection:
+                return "当前地址被 iOS 网络安全策略拦截，请使用 localhost、局域网 IP 或 HTTPS。"
+            default:
+                return "语音服务网络错误：\(error.localizedDescription)"
+            }
         }
     }
 }

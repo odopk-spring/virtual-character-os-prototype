@@ -23,7 +23,7 @@ source .venv/bin/activate
 uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-Then configure the iOS app:
+Then configure the iOS app in Simulator:
 
 - Enable `语音消息`
 - `TTS Server URL`: `http://127.0.0.1:8000`
@@ -34,6 +34,23 @@ The app automatically calls:
 ```text
 POST http://127.0.0.1:8000/v1/tts
 ```
+
+For a physical iPhone, `127.0.0.1` means the phone itself, not the Mac. Start the server on all interfaces:
+
+```bash
+uvicorn server:app --host 0.0.0.0 --port 8000
+```
+
+Find the Mac LAN IP:
+
+```bash
+ipconfig getifaddr en0
+```
+
+Then configure the app on iPhone:
+
+- `TTS Server URL`: `http://<Mac LAN IP>:8000`
+- Example: `http://192.168.1.23:8000`
 
 ## Test
 

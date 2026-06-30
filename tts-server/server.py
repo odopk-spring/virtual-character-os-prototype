@@ -46,6 +46,14 @@ def health() -> dict[str, str]:
     }
 
 
+@app.get("/")
+def root() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "message": "VirtualCharacterOS mock TTS server. Use POST /v1/tts.",
+    }
+
+
 @app.post("/v1/tts")
 def tts(request: TTSRequest) -> FileResponse:
     if request.format.lower() != "mp3":
