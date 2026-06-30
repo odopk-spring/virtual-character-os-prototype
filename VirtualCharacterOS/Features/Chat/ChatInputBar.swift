@@ -47,21 +47,17 @@ struct ChatInputBar: View {
                         .frame(width: ChatUIStyle.iconTouchArea, height: ChatUIStyle.iconTouchArea)
                 }
 
-                if hasText {
-                    Button(action: onSend) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 26))
-                            .foregroundStyle(.blue)
+                Button(action: {
+                    if hasText {
+                        onSend()
                     }
-                    .disabled(isLoading)
-                } else {
-                    Button(action: {}) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 26))
-                            .foregroundStyle(.gray)
-                            .frame(width: ChatUIStyle.iconTouchArea, height: ChatUIStyle.iconTouchArea)
-                    }
+                }) {
+                    Image(systemName: hasText ? "arrow.up.circle.fill" : "plus.circle")
+                        .font(.system(size: 26))
+                        .foregroundStyle(hasText ? .blue : .gray)
+                        .frame(width: ChatUIStyle.iconTouchArea, height: ChatUIStyle.iconTouchArea)
                 }
+                .disabled(isLoading && hasText)
             }
             .padding(.horizontal, 10)
             .frame(height: ChatUIStyle.inputBarHeight)

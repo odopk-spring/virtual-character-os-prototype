@@ -25,6 +25,10 @@ struct ChatBubbleView: View {
         availableWidth * ChatUIStyle.bubbleMaxWidthRatio
     }
 
+    private var voiceBubbleWidth: CGFloat {
+        min(max(availableWidth * 0.46, 158), 220)
+    }
+
     private var isAssistantPlaceholder: Bool {
         guard message.role == .assistant,
               message.status == .sending else {
@@ -196,8 +200,8 @@ struct ChatBubbleView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .frame(minWidth: 190, maxWidth: bubbleMaxWidth, alignment: .leading)
+            .padding(.vertical, 8)
+            .frame(width: voiceBubbleWidth, alignment: .leading)
             .background(
                 ChatBubbleShape(
                     side: .left,
@@ -206,14 +210,34 @@ struct ChatBubbleView: View {
                     tailHeight: tailH,
                     tailOffset: tailOff
                 )
-                .fill(bubbleColor)
+                .fill(.thinMaterial)
+            )
+            .overlay(
+                ChatBubbleShape(
+                    side: .left,
+                    cornerRadius: ChatUIStyle.bubbleCornerRadius,
+                    tailWidth: tailW,
+                    tailHeight: tailH,
+                    tailOffset: tailOff
+                )
+                .fill(Color.white.opacity(0.18))
+            )
+            .overlay(
+                ChatBubbleShape(
+                    side: .left,
+                    cornerRadius: ChatUIStyle.bubbleCornerRadius,
+                    tailWidth: tailW,
+                    tailHeight: tailH,
+                    tailOffset: tailOff
+                )
+                .stroke(Color.white.opacity(0.45), lineWidth: 0.6)
             )
 
             Text(message.content)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
+                .frame(width: min(bubbleMaxWidth, voiceBubbleWidth + 28), alignment: .leading)
                 .padding(.leading, 4)
 
             if let error = voicePlayback?.errorMessage(for: message.id) {
