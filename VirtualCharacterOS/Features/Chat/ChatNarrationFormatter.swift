@@ -23,7 +23,7 @@ enum ChatNarrationFormatter {
             guard trimmed.first == pair.0, trimmed.last == pair.1 else { continue }
             let inner = String(trimmed.dropFirst().dropLast())
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !inner.isEmpty, inner.count <= 80 else { continue }
+            guard !inner.isEmpty else { continue }
             // 去除旁白内可能带上的引号包裹
             return inner
                 .replacingOccurrences(of: "\"", with: "")
@@ -45,10 +45,11 @@ enum ChatNarrationFormatter {
 
         while index < trimmed.endIndex {
             if let marker = marker(at: index, in: trimmed),
-               buffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               isLineBoundaryBefore(index, in: trimmed),
                let close = trimmed[index...].dropFirst().firstIndex(of: marker.close) {
                 let candidate = String(trimmed[index...close])
-                if narrationText(from: candidate) != nil {
+                if isLineBoundaryAfter(close, in: trimmed),
+                   narrationText(from: candidate) != nil {
                     appendIfNotEmpty(buffer, to: &result)
                     result.append(candidate)
                     buffer = ""
@@ -82,22 +83,22 @@ enum ChatNarrationFormatter {
     private static func removeInlineNarrationMarkers(_ text: String) -> String {
         var result = text
         result = result.replacingOccurrences(
-            of: #"\*[^*\n]{1,80}\*"#,
+            of: #"\*[^*\n]+\*"#,
             with: "",
             options: .regularExpression
         )
         result = result.replacingOccurrences(
-            of: #"（[^（）\n]{1,80}）"#,
+            of: #"（[^（）\n]+）"#,
             with: "",
             options: .regularExpression
         )
         result = result.replacingOccurrences(
-            of: #"\([^()\n]{1,80}\)"#,
+            of: #"\([^()\n]+\)"#,
             with: "",
             options: .regularExpression
         )
         result = result.replacingOccurrences(
-            of: #"【[^【】\n]{1,80}】"#,
+            of: #"【[^【】\n]+】"#,
             with: "",
             options: .regularExpression
         )
@@ -119,5 +120,17 @@ enum ChatNarrationFormatter {
         case "【": return ("【", "】")
         default: return nil
         }
+    }
+
+    private static func isLineBoundaryBefore(_ index: String.Index, in text: String) -> Bool {
+        guard index > text.startIndex else { return true }
+        let previous = text.index(before: index)
+        return text[previous] == "\n" || text[previous] == "\r"
+    }
+
+    private static func isLineBoundaryAfter(_ index: String.Index, in text: String) -> Bool {
+        let next = text.index(after: index)
+        guard next < text.endIndex else { return true }
+        return text[next] == "\n" || text[next] == "\r"
     }
 }
