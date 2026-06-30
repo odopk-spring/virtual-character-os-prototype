@@ -6,6 +6,8 @@ struct ChatBubbleView: View {
     let message: ChatMessage
     let availableWidth: CGFloat
     var characterAvatarImage: UIImage? = nil
+    var voiceSettings: VoiceSettings = .disabled
+    var voicePlayback: VoicePlaybackCoordinator? = nil
     var onRestore: ((ChatMessage) -> Void)? = nil
     var isSelectionMode: Bool = false
     var isSelected: Bool = false
@@ -30,6 +32,14 @@ struct ChatBubbleView: View {
         }
         let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty || trimmed == "..." || trimmed == "…"
+    }
+
+    private var usesVoiceBubble: Bool {
+        voiceSettings.isEnabled
+            && message.role == .assistant
+            && message.status == .sent
+            && narrationText == nil
+            && !isSelectionMode
     }
 
     var body: some View {
@@ -124,49 +134,152 @@ struct ChatBubbleView: View {
 
     private var bubbleContent: some View {
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 2) {
-            Text(message.content)
-                .font(.system(size: ChatUIStyle.bubbleFontSize))
-                .foregroundStyle(ChatUIStyle.bubbleText)
-                .padding(.horizontal, ChatUIStyle.bubbleHorizontalPadding)
-                .padding(.vertical, ChatUIStyle.bubbleVerticalPadding)
-                .background(
-                    ChatBubbleShape(
-                        side: message.role == .assistant ? .left : .right,
-                        cornerRadius: ChatUIStyle.bubbleCornerRadius,
-                        tailWidth: tailW,
-                        tailHeight: tailH,
-                        tailOffset: tailOff
-                    )
-                    .fill(bubbleColor)
-                )
-                .frame(maxWidth: bubbleMaxWidth, alignment: message.role == .user ? .trailing : .leading)
-                .contextMenu {
-                    if message.status == .sent, !isSelectionMode {
-                        Button {
-                            onSelect?(message)
-                        } label: {
-                            Label("选择", systemImage: "checkmark.circle")
-                        }
-                    }
-                    Button {
-                        UIPasteboard.general.string = message.content
-                    } label: {
-                        Label("复制", systemImage: "doc.on.doc")
-                    }
-                    if message.status == .sent, !isSelectionMode {
-                        Button {
-                            onRestore?(message)
-                        } label: {
-                            Label("从这里重新开始", systemImage: "arrow.triangle.branch")
-                        }
-                    }
-                }
+            if usesVoiceBubble {
+                voiceBubbleContent
+            } else {
+                textBubbleContent
+            }
 
             if message.status == .failed {
                 Text(message.errorMessage ?? "发送失败")
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .padding(.leading, 4)
+            }
+        }
+    }
+
+    private var textBubbleContent: some View {
+        Text(message.content)
+            .font(.system(size: ChatUIStyle.bubbleFontSize))
+            .foregroundStyle(ChatUIStyle.bubbleText)
+            .padding(.horizontal, ChatUIStyle.bubbleHorizontalPadding)
+            .padding(.vertical, ChatUIStyle.bubbleVerticalPadding)
+            .background(
+                ChatBubbleShape(
+                    side: message.role == .assistant ? .left : .right,
+                    cornerRadius: ChatUIStyle.bubbleCornerRadius,
+                    tailWidth: tailW,
+                    tailHeight: tailH,
+                    tailOffset: tailOff
+                )
+                .fill(bubbleColor)
+            )
+            .frame(maxWidth: bubbleMaxWidth, alignment: message.role == .user ? .trailing : .leading)
+            .contextMenu {
+                messageActions
+            }
+    }
+
+    private var voiceBubbleContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Button {
+                    voicePlayback?.togglePlayback(for: message, settings: voiceSettings)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.black.opacity(0.08))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: voiceButtonIcon)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("播放语音")
+
+                voiceWaveform
+
+                Text("语音")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(minWidth: 190, maxWidth: bubbleMaxWidth, alignment: .leading)
+            .background(
+                ChatBubbleShape(
+                    side: .left,
+                    cornerRadius: ChatUIStyle.bubbleCornerRadius,
+                    tailWidth: tailW,
+                    tailHeight: tailH,
+                    tailOffset: tailOff
+                )
+                .fill(bubbleColor)
+            )
+
+            Text(message.content)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
+                .padding(.leading, 4)
+
+            if let error = voicePlayback?.errorMessage(for: message.id) {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .padding(.leading, 4)
+            }
+        }
+        .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
+        .contextMenu {
+            messageActions
+        }
+    }
+
+    private var voiceButtonIcon: String {
+        guard let voicePlayback else { return "play.fill" }
+        if voicePlayback.isLoading(messageID: message.id) {
+            return "hourglass"
+        }
+        return voicePlayback.isPlaying(messageID: message.id) ? "stop.fill" : "play.fill"
+    }
+
+    private var voiceWaveform: some View {
+        HStack(alignment: .center, spacing: 3) {
+            ForEach(0..<12, id: \.self) { index in
+                Capsule()
+                    .fill(Color.primary.opacity(waveOpacity(for: index)))
+                    .frame(width: 3, height: waveHeight(for: index))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func waveHeight(for index: Int) -> CGFloat {
+        let pattern: [CGFloat] = [9, 15, 20, 12, 24, 17, 11, 21, 14, 19, 10, 16]
+        return pattern[index % pattern.count]
+    }
+
+    private func waveOpacity(for index: Int) -> Double {
+        guard let voicePlayback,
+              voicePlayback.isPlaying(messageID: message.id) else {
+            return index % 2 == 0 ? 0.28 : 0.18
+        }
+        return index % 2 == 0 ? 0.62 : 0.38
+    }
+
+    @ViewBuilder
+    private var messageActions: some View {
+        if message.status == .sent, !isSelectionMode {
+            Button {
+                onSelect?(message)
+            } label: {
+                Label("选择", systemImage: "checkmark.circle")
+            }
+        }
+        Button {
+            UIPasteboard.general.string = message.content
+        } label: {
+            Label("复制", systemImage: "doc.on.doc")
+        }
+        if message.status == .sent, !isSelectionMode {
+            Button {
+                onRestore?(message)
+            } label: {
+                Label("从这里重新开始", systemImage: "arrow.triangle.branch")
             }
         }
     }

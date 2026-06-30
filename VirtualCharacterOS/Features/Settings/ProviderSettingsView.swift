@@ -131,6 +131,41 @@ struct ProviderSettingsView: View {
                 Text("聊天显示")
             }
 
+            // MARK: - Voice
+
+            Section {
+                Toggle("语音消息", isOn: $viewModel.voiceEnabled)
+
+                if viewModel.voiceEnabled {
+                    TextField("TTS Server URL", text: $viewModel.voiceServerBaseURL)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    TextField("Voice ID", text: $viewModel.voiceID)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("语速")
+                            Spacer()
+                            Text(String(format: "%.1fx", viewModel.voiceSpeed))
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $viewModel.voiceSpeed, in: 0.7...1.3, step: 0.1)
+                    }
+
+                    Toggle("朗读旁白", isOn: $viewModel.voiceReadsNarration)
+
+                    Text("开启后，assistant 正文会显示为语音条；点击播放时请求你的 TTS 服务生成音频，文字转录仍显示在语音条下方。服务地址需使用 HTTPS。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("角色语音")
+            }
+
             // MARK: - Chat History
 
             Section {
@@ -216,6 +251,21 @@ struct ProviderSettingsView: View {
         }
         .onChange(of: viewModel.replyLengthLevel) { _, _ in
             viewModel.saveChatDisplaySettings()
+        }
+        .onChange(of: viewModel.voiceEnabled) { _, _ in
+            viewModel.saveVoiceSettings()
+        }
+        .onChange(of: viewModel.voiceServerBaseURL) { _, _ in
+            viewModel.saveVoiceSettings()
+        }
+        .onChange(of: viewModel.voiceID) { _, _ in
+            viewModel.saveVoiceSettings()
+        }
+        .onChange(of: viewModel.voiceSpeed) { _, _ in
+            viewModel.saveVoiceSettings()
+        }
+        .onChange(of: viewModel.voiceReadsNarration) { _, _ in
+            viewModel.saveVoiceSettings()
         }
     }
 }

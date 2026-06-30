@@ -8,6 +8,8 @@ struct ChatView: View {
     @State private var characterAvatar: UIImage?
     @State private var restoreTargetMessage: ChatMessage?
     @State private var showHideConfirm: Bool = false
+    @State private var voiceSettings: VoiceSettings = .load()
+    @State private var voicePlayback = VoicePlaybackCoordinator()
 
     init(store: any MessageStore) {
         _viewModel = State(initialValue: ChatViewModel(store: store))
@@ -57,6 +59,8 @@ struct ChatView: View {
                                     message: message,
                                     availableWidth: geometry.size.width,
                                     characterAvatarImage: characterAvatar,
+                                    voiceSettings: voiceSettings,
+                                    voicePlayback: voicePlayback,
                                     onRestore: { msg in restoreTargetMessage = msg },
                                     isSelectionMode: viewModel.isSelectionMode,
                                     isSelected: viewModel.selectedMessageIDs.contains(message.id),
@@ -120,12 +124,17 @@ struct ChatView: View {
             viewModel.loadMessages()
             viewModel.reloadCharacterProfile()
             characterAvatar = AvatarStore.loadImage()
+            voiceSettings = .load()
         }
         .onChange(of: showSettings) { _, newValue in
             // 从设置页返回时刷新头像和角色档案
             if !newValue {
                 viewModel.reloadCharacterProfile()
                 characterAvatar = AvatarStore.loadImage()
+                voiceSettings = .load()
+                if !voiceSettings.isEnabled {
+                    voicePlayback.stop()
+                }
             }
         }
         .navigationBarHidden(true)

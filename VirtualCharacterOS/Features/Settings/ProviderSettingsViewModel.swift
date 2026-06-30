@@ -18,6 +18,11 @@ final class ProviderSettingsViewModel {
     var avatarImage: UIImage?
     var allowsNarrationBlocks: Bool
     var replyLengthLevel: ContextBuilder.ReplyLengthLevel
+    var voiceEnabled: Bool
+    var voiceServerBaseURL: String
+    var voiceID: String
+    var voiceSpeed: Double
+    var voiceReadsNarration: Bool
 
     // MARK: - 内部依赖
 
@@ -41,6 +46,12 @@ final class ProviderSettingsViewModel {
         self.allowsNarrationBlocks = defaults.bool(forKey: ChatNarrationFormatter.settingsKey)
         let levelRaw = defaults.string(forKey: Self.replyLengthLevelKey) ?? ""
         self.replyLengthLevel = ContextBuilder.ReplyLengthLevel(rawValue: levelRaw) ?? .normal
+        let voiceSettings = VoiceSettings.load(defaults: defaults)
+        self.voiceEnabled = voiceSettings.isEnabled
+        self.voiceServerBaseURL = voiceSettings.serverBaseURLString
+        self.voiceID = voiceSettings.voiceID
+        self.voiceSpeed = voiceSettings.speed
+        self.voiceReadsNarration = voiceSettings.readsNarration
 
         // 检查 Keychain 是否已有 Key
         refreshKeyStatus()
@@ -95,6 +106,16 @@ final class ProviderSettingsViewModel {
     func saveChatDisplaySettings() {
         UserDefaults.standard.set(allowsNarrationBlocks, forKey: ChatNarrationFormatter.settingsKey)
         UserDefaults.standard.set(replyLengthLevel.rawValue, forKey: Self.replyLengthLevelKey)
+    }
+
+    func saveVoiceSettings() {
+        VoiceSettings(
+            isEnabled: voiceEnabled,
+            serverBaseURLString: voiceServerBaseURL,
+            voiceID: voiceID,
+            speed: voiceSpeed,
+            readsNarration: voiceReadsNarration
+        ).save()
     }
 
     // MARK: - 角色头像
