@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 @Observable
-final class VoicePlaybackCoordinator {
+final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
     private let provider: any VoiceProvider
     private var player: AVPlayer?
     private let speechSynthesizer = AVSpeechSynthesizer()
@@ -16,6 +16,8 @@ final class VoicePlaybackCoordinator {
 
     init(provider: any VoiceProvider = LocalServerVoiceProvider()) {
         self.provider = provider
+        super.init()
+        speechSynthesizer.delegate = self
     }
 
     func isPlaying(messageID: UUID) -> Bool {
@@ -38,6 +40,9 @@ final class VoicePlaybackCoordinator {
             return
         }
 
+        stop()
+        activeMessageID = message.id
+        loadingMessageID = message.id
         Task {
             await play(message: message, settings: settings)
         }
@@ -57,9 +62,7 @@ final class VoicePlaybackCoordinator {
     }
 
     private func play(message: ChatMessage, settings: VoiceSettings) async {
-        stop()
-        activeMessageID = message.id
-        loadingMessageID = message.id
+        guard activeMessageID == message.id else { return }
 
         guard let text = VoiceTextExtractor.readableText(from: message, settings: settings) else {
             loadingMessageID = nil
@@ -70,7 +73,7 @@ final class VoicePlaybackCoordinator {
         do {
             switch settings.engine {
             case .onDevice:
-                playOnDevice(text: text, messageID: message.id, settings: settings)
+                try playOnDevice(text: text, messageID: message.id, settings: settings)
             case .localServer:
                 let audioURL = try await provider.speechAudioURL(
                     for: text,
@@ -78,8 +81,7 @@ final class VoicePlaybackCoordinator {
                     readMode: ChatNarrationFormatter.narrationText(from: message) == nil ? "chat" : "narration"
                 )
                 guard activeMessageID == message.id else { return }
-                try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-                try? AVAudioSession.sharedInstance().setActive(true)
+                try configurePlaybackAudioSession()
 
                 let item = AVPlayerItem(url: audioURL)
                 observePlaybackEnd(for: item)
@@ -95,13 +97,12 @@ final class VoicePlaybackCoordinator {
         }
     }
 
-    private func playOnDevice(text: String, messageID: UUID, settings: VoiceSettings) {
+    private func playOnDevice(text: String, messageID: UUID, settings: VoiceSettings) throws {
         guard activeMessageID == messageID else { return }
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        try configurePlaybackAudioSession()
 
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
+        utterance.voice = preferredChineseVoice()
         utterance.rate = Float(0.48 * settings.speed)
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
@@ -110,6 +111,20 @@ final class VoicePlaybackCoordinator {
         loadingMessageID = nil
         errorMessage = nil
         scheduleOnDevicePlaybackRefresh(messageID: messageID)
+    }
+
+    private func configurePlaybackAudioSession() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+        try session.setActive(true)
+    }
+
+    private func preferredChineseVoice() -> AVSpeechSynthesisVoice? {
+        AVSpeechSynthesisVoice(language: "zh-CN")
+            ?? AVSpeechSynthesisVoice(language: "zh-Hans")
+            ?? AVSpeechSynthesisVoice.speechVoices().first {
+                $0.language.hasPrefix("zh")
+            }
     }
 
     private func scheduleOnDevicePlaybackRefresh(messageID: UUID) {
@@ -121,6 +136,38 @@ final class VoicePlaybackCoordinator {
                     return
                 }
             }
+        }
+    }
+
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didStart utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor in
+            guard self.activeMessageID != nil else { return }
+            self.isOnDeviceSpeaking = true
+            self.loadingMessageID = nil
+            self.errorMessage = nil
+        }
+    }
+
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didFinish utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor in
+            guard self.isOnDeviceSpeaking else { return }
+            self.stop()
+        }
+    }
+
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        didCancel utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor in
+            guard self.isOnDeviceSpeaking else { return }
+            self.stop()
         }
     }
 
