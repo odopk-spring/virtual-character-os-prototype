@@ -1,6 +1,47 @@
 import Foundation
 
+enum VoicePlaybackAvailability: Equatable {
+    case playable(label: String)
+    case unavailable(reason: String)
+
+    var isPlayable: Bool {
+        if case .playable = self { return true }
+        return false
+    }
+}
+
 enum VoiceTextExtractor {
+    static func availability(
+        from message: ChatMessage,
+        settings: VoiceSettings
+    ) -> VoicePlaybackAvailability {
+        guard message.role == .assistant, message.status == .sent else {
+            return .unavailable(reason: "这条消息还不能播放。")
+        }
+
+        if ChatNarrationFormatter.narrationText(from: message) != nil,
+           !settings.readsNarration {
+            return .unavailable(reason: "旁白朗读已关闭。")
+        }
+
+        guard readableText(from: message, settings: settings) != nil else {
+            return .unavailable(reason: "没有可朗读的文本。")
+        }
+
+        switch settings.engine {
+        case .onDevice:
+            return .playable(label: "iPhone 本地")
+        case .localServer:
+            guard settings.hasPlayableConfiguration else {
+                return .unavailable(reason: "本地 TTS 需要服务地址和 voiceId。")
+            }
+            guard settings.serverBaseURL != nil else {
+                return .unavailable(reason: "语音服务地址无效。")
+            }
+            return .playable(label: "TTS 服务")
+        }
+    }
+
     static func readableText(from message: ChatMessage, settings: VoiceSettings) -> String? {
         guard message.role == .assistant, message.status == .sent else { return nil }
 

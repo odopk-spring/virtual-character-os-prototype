@@ -33,6 +33,13 @@ final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
         activeMessageID == messageID ? errorMessage : nil
     }
 
+    func showUnavailable(reason: String, for messageID: UUID) {
+        stop()
+        activeMessageID = messageID
+        loadingMessageID = nil
+        errorMessage = reason
+    }
+
     func togglePlayback(for message: ChatMessage, settings: VoiceSettings) {
         if activeMessageID == message.id,
            (player?.timeControlStatus == .playing || isOnDeviceSpeaking) {
@@ -106,11 +113,9 @@ final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
         utterance.rate = Float(0.48 * settings.speed)
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
-        isOnDeviceSpeaking = true
         speechSynthesizer.speak(utterance)
-        loadingMessageID = nil
         errorMessage = nil
-        scheduleOnDevicePlaybackRefresh(messageID: messageID)
+        scheduleOnDevicePlaybackStartCheck(messageID: messageID)
     }
 
     private func configurePlaybackAudioSession() throws {
@@ -127,7 +132,27 @@ final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
             }
     }
 
-    private func scheduleOnDevicePlaybackRefresh(messageID: UUID) {
+    private func scheduleOnDevicePlaybackStartCheck(messageID: UUID) {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard activeMessageID == messageID,
+                  loadingMessageID == messageID,
+                  !isOnDeviceSpeaking else {
+                return
+            }
+
+            if speechSynthesizer.isSpeaking {
+                isOnDeviceSpeaking = true
+                loadingMessageID = nil
+                scheduleOnDevicePlaybackFinishCheck(messageID: messageID)
+            } else {
+                loadingMessageID = nil
+                errorMessage = VoicePlaybackError.speechStartFailed.localizedDescription
+            }
+        }
+    }
+
+    private func scheduleOnDevicePlaybackFinishCheck(messageID: UUID) {
         Task { @MainActor in
             while activeMessageID == messageID, isOnDeviceSpeaking {
                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -144,10 +169,11 @@ final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
         didStart utterance: AVSpeechUtterance
     ) {
         Task { @MainActor in
-            guard self.activeMessageID != nil else { return }
+            guard let activeMessageID = self.activeMessageID else { return }
             self.isOnDeviceSpeaking = true
             self.loadingMessageID = nil
             self.errorMessage = nil
+            self.scheduleOnDevicePlaybackFinishCheck(messageID: activeMessageID)
         }
     }
 

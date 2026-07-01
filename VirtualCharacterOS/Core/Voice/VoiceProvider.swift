@@ -15,6 +15,7 @@ enum VoicePlaybackError: LocalizedError {
     case insecureServerURL
     case emptyText
     case emptyAudio
+    case speechStartFailed
     case serverError(Int)
     case network(URLError)
 
@@ -32,6 +33,8 @@ enum VoicePlaybackError: LocalizedError {
             return "没有可播放的文本。"
         case .emptyAudio:
             return "语音服务没有返回音频。"
+        case .speechStartFailed:
+            return "iPhone 本地语音没有开始播放。请确认系统音量、音频输出设备，并重新安装最新构建后再试。"
         case .serverError(let statusCode):
             return "语音服务请求失败（\(statusCode)）。"
         case .network(let error):

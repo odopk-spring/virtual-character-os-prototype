@@ -46,6 +46,10 @@ struct ChatBubbleView: View {
             && !isSelectionMode
     }
 
+    private var voiceAvailability: VoicePlaybackAvailability {
+        VoiceTextExtractor.availability(from: message, settings: voiceSettings)
+    }
+
     var body: some View {
         if isAssistantPlaceholder {
             Color.clear.frame(height: 0)
@@ -179,15 +183,20 @@ struct ChatBubbleView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Button {
-                    voicePlayback?.togglePlayback(for: message, settings: voiceSettings)
+                    switch voiceAvailability {
+                    case .playable:
+                        voicePlayback?.togglePlayback(for: message, settings: voiceSettings)
+                    case .unavailable(let reason):
+                        voicePlayback?.showUnavailable(reason: reason, for: message.id)
+                    }
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(Color.black.opacity(0.08))
+                            .fill(voiceAccentColor.opacity(voiceAvailability.isPlayable ? 0.16 : 0.10))
                             .frame(width: 32, height: 32)
                         Image(systemName: voiceButtonIcon)
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(voiceAccentColor)
                     }
                 }
                 .buttonStyle(.plain)
@@ -195,9 +204,9 @@ struct ChatBubbleView: View {
 
                 voiceWaveform
 
-                Text("语音")
+                Text(voiceStatusText)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(voiceAccentColor)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -220,7 +229,7 @@ struct ChatBubbleView: View {
                     tailHeight: tailH,
                     tailOffset: tailOff
                 )
-                .fill(Color.white.opacity(0.18))
+                .fill(voiceAccentColor.opacity(0.08))
             )
             .overlay(
                 ChatBubbleShape(
@@ -230,7 +239,7 @@ struct ChatBubbleView: View {
                     tailHeight: tailH,
                     tailOffset: tailOff
                 )
-                .stroke(Color.white.opacity(0.45), lineWidth: 0.6)
+                .stroke(voiceAccentColor.opacity(voiceAvailability.isPlayable ? 0.42 : 0.28), lineWidth: 0.8)
             )
 
             Text(message.content)
@@ -258,14 +267,37 @@ struct ChatBubbleView: View {
         if voicePlayback.isLoading(messageID: message.id) {
             return "hourglass"
         }
+        guard voiceAvailability.isPlayable else {
+            return "exclamationmark"
+        }
         return voicePlayback.isPlaying(messageID: message.id) ? "stop.fill" : "play.fill"
+    }
+
+    private var voiceStatusText: String {
+        switch voiceAvailability {
+        case .playable(let label):
+            return label
+        case .unavailable:
+            return "不可播"
+        }
+    }
+
+    private var voiceAccentColor: Color {
+        switch voiceAvailability {
+        case .playable(let label):
+            return label == "TTS 服务"
+                ? Color(red: 34/255, green: 132/255, blue: 98/255)
+                : Color(red: 42/255, green: 99/255, blue: 210/255)
+        case .unavailable:
+            return Color(red: 181/255, green: 105/255, blue: 28/255)
+        }
     }
 
     private var voiceWaveform: some View {
         HStack(alignment: .center, spacing: 3) {
             ForEach(0..<12, id: \.self) { index in
                 Capsule()
-                    .fill(Color.primary.opacity(waveOpacity(for: index)))
+                    .fill(voiceAccentColor.opacity(waveOpacity(for: index)))
                     .frame(width: 3, height: waveHeight(for: index))
             }
         }
