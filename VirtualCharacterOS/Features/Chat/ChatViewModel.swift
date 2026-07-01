@@ -342,7 +342,11 @@ final class ChatViewModel {
             #endif
 
             let config = Self.readConfig()
-            let request = ChatRequest(messages: requestMessages, temperature: 0.8, maxTokens: 500)
+            let request = ChatRequest(
+                messages: requestMessages,
+                temperature: 0.8,
+                maxTokens: replyLengthLevel == .long ? nil : 500
+            )
             let response = try await provider.send(request, config: config)
 
             let raw = response.content
