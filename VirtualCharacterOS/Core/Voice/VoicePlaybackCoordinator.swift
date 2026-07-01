@@ -18,6 +18,7 @@ final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
         self.provider = provider
         super.init()
         speechSynthesizer.delegate = self
+        speechSynthesizer.usesApplicationAudioSession = false
     }
 
     func isPlaying(messageID: UUID) -> Bool {
@@ -106,7 +107,6 @@ final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
 
     private func playOnDevice(text: String, messageID: UUID, settings: VoiceSettings) throws {
         guard activeMessageID == messageID else { return }
-        try configurePlaybackAudioSession()
 
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = preferredChineseVoice()

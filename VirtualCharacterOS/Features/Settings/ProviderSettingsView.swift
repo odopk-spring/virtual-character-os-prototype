@@ -4,6 +4,8 @@ import PhotosUI
 struct ProviderSettingsView: View {
     @State private var viewModel = ProviderSettingsViewModel()
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var voiceSelfTest = VoicePlaybackCoordinator()
+    @State private var voiceSelfTestMessageID = UUID()
     var onHistoryTap: (() -> Void)? = nil
 
     var body: some View {
@@ -166,6 +168,26 @@ struct ProviderSettingsView: View {
 
                     Toggle("朗读旁白", isOn: $viewModel.voiceReadsNarration)
 
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            runOnDeviceVoiceSelfTest()
+                        } label: {
+                            Label(voiceSelfTestButtonTitle, systemImage: voiceSelfTestButtonIcon)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Text("自检只调用 iPhone 本地语音，不经过聊天气泡、旁白识别或本地 TTS 服务。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if let error = voiceSelfTest.errorMessage(for: voiceSelfTestMessageID) {
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                        }
+                    }
+
                     Text(viewModel.voiceEngine == .onDevice ? "开启后，assistant 正文会显示为语音条；点击播放时由 iPhone 本地语音直接朗读，文字转录仍显示在语音条下方。" : "开启后，assistant 正文会显示为语音条；点击播放时请求你的 TTS 服务生成音频，文字转录仍显示在语音条下方。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -278,6 +300,44 @@ struct ProviderSettingsView: View {
         .onChange(of: viewModel.voiceReadsNarration) { _, _ in
             viewModel.saveVoiceSettings()
         }
+    }
+
+    private var voiceSelfTestButtonTitle: String {
+        if voiceSelfTest.isLoading(messageID: voiceSelfTestMessageID) {
+            return "正在测试 iPhone 本地语音"
+        }
+        if voiceSelfTest.isPlaying(messageID: voiceSelfTestMessageID) {
+            return "停止测试语音"
+        }
+        return "测试 iPhone 本地语音"
+    }
+
+    private var voiceSelfTestButtonIcon: String {
+        if voiceSelfTest.isLoading(messageID: voiceSelfTestMessageID) {
+            return "hourglass"
+        }
+        if voiceSelfTest.isPlaying(messageID: voiceSelfTestMessageID) {
+            return "stop.fill"
+        }
+        return "speaker.wave.2.fill"
+    }
+
+    private func runOnDeviceVoiceSelfTest() {
+        let message = ChatMessage(
+            id: voiceSelfTestMessageID,
+            role: .assistant,
+            content: "这是一段 iPhone 本地语音测试。",
+            status: .sent
+        )
+        let settings = VoiceSettings(
+            isEnabled: true,
+            engine: .onDevice,
+            serverBaseURLString: "",
+            voiceID: "",
+            speed: viewModel.voiceSpeed,
+            readsNarration: false
+        )
+        voiceSelfTest.togglePlayback(for: message, settings: settings)
     }
 }
 
