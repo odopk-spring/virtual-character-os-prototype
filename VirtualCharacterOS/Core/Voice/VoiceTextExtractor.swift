@@ -33,10 +33,10 @@ enum VoiceTextExtractor {
             return .playable(label: "iPhone 本地")
         case .localServer:
             guard settings.hasPlayableConfiguration else {
-                return .unavailable(reason: "本地 TTS 需要服务地址和 voiceId。")
+                return .playable(label: "本地回退")
             }
             guard settings.serverBaseURL != nil else {
-                return .unavailable(reason: "语音服务地址无效。")
+                return .playable(label: "本地回退")
             }
             return .playable(label: "TTS 服务")
         }

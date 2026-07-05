@@ -83,25 +83,43 @@ final class VoicePlaybackCoordinator: NSObject, AVSpeechSynthesizerDelegate {
             case .onDevice:
                 try playOnDevice(text: text, messageID: message.id, settings: settings)
             case .localServer:
-                let audioURL = try await provider.speechAudioURL(
-                    for: text,
-                    settings: settings,
-                    readMode: ChatNarrationFormatter.narrationText(from: message) == nil ? "chat" : "narration"
+                try await playLocalServerOrFallback(
+                    text: text,
+                    message: message,
+                    settings: settings
                 )
-                guard activeMessageID == message.id else { return }
-                try configurePlaybackAudioSession()
-
-                let item = AVPlayerItem(url: audioURL)
-                observePlaybackEnd(for: item)
-                player = AVPlayer(playerItem: item)
-                player?.play()
-                loadingMessageID = nil
-                errorMessage = nil
             }
         } catch {
             guard activeMessageID == message.id else { return }
             loadingMessageID = nil
             errorMessage = (error as? LocalizedError)?.errorDescription ?? "语音播放失败。"
+        }
+    }
+
+    private func playLocalServerOrFallback(
+        text: String,
+        message: ChatMessage,
+        settings: VoiceSettings
+    ) async throws {
+        do {
+            let audioURL = try await provider.speechAudioURL(
+                for: text,
+                settings: settings,
+                readMode: ChatNarrationFormatter.narrationText(from: message) == nil ? "chat" : "narration"
+            )
+            guard activeMessageID == message.id else { return }
+            try configurePlaybackAudioSession()
+
+            let item = AVPlayerItem(url: audioURL)
+            observePlaybackEnd(for: item)
+            player = AVPlayer(playerItem: item)
+            player?.play()
+            loadingMessageID = nil
+            errorMessage = nil
+        } catch {
+            guard activeMessageID == message.id else { return }
+            errorMessage = "TTS 服务不可用，已改用 iPhone 本地语音。"
+            try playOnDevice(text: text, messageID: message.id, settings: settings)
         }
     }
 
