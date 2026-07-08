@@ -1,8 +1,8 @@
 # VirtualCharacterOS
 
 An open-source iOS prototype for a virtual character agent: BYOK model access,
-long-term memory, world-book context, natural chat rhythm, narration blocks, and
-voice-message playback experiments.
+manual long-term memory, world-book context, natural chat rhythm, narration
+blocks, and voice-message playback experiments.
 
 This repository is a prototype, not a production service. It intentionally keeps
 API keys out of source control: model credentials are entered by the user and
@@ -61,7 +61,7 @@ MIT. See [LICENSE](LICENSE).
 
 ## 一句话定义
 
-> 一个 iOS 上的虚拟人物生命系统。用户通过 BYOK 接入大模型，App 负责让虚拟人物拥有长期记忆、世界设定、时间流、主动行为和关系演化，从而形成像真实网友一样连续自然的互动体验。
+> 一个 iOS 虚拟人格智能体原型。用户通过 BYOK 接入大模型，App 当前实现角色档案、手动记忆、世界书、对话分支、旁白分段和语音播放等基础能力，并以此探索更自然的虚拟人物运行时。
 
 ## 文档导航
 
