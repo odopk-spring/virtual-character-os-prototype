@@ -1,6 +1,6 @@
 # Real Conversation Patterns v0
 
-Source: `/Users/odopkk/Desktop/claude code/VirtualCharacterOS_Real_Conversation_Research_Report.md`
+Source: internal research note, redacted for the open-source prototype.
 
 This document converts the research report into small, executable rules for VirtualCharacterOS. Each rule must be discussed and landed separately.
 

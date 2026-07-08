@@ -1,3 +1,60 @@
+# VirtualCharacterOS
+
+An open-source iOS prototype for a virtual character agent: BYOK model access,
+long-term memory, world-book context, natural chat rhythm, narration blocks, and
+voice-message playback experiments.
+
+This repository is a prototype, not a production service. It intentionally keeps
+API keys out of source control: model credentials are entered by the user and
+stored in the iOS Keychain. The optional local TTS server is for development
+testing and exposes a small `/v1/tts` interface that returns MP3 audio.
+
+## Prototype Features
+
+- SwiftUI chat UI with multi-bubble assistant delivery.
+- OpenAI-compatible BYOK chat provider.
+- Character profile, manual memories, world-book entries, and branchable chat history.
+- Reply-length controls and narration display mode.
+- iPhone on-device speech playback and optional local/private TTS proxy support.
+- Local JSON persistence in the app sandbox.
+
+## Quick Start
+
+```bash
+brew install xcodegen
+xcodegen generate
+xcodebuild -project VirtualCharacterOS.xcodeproj \
+  -scheme VirtualCharacterOS \
+  -destination 'generic/platform=iOS Simulator' build
+```
+
+Open `VirtualCharacterOS.xcodeproj` in Xcode, run the app, then configure your
+OpenAI-compatible provider in Settings. Do not commit API keys or local `.env`
+files.
+
+## Optional Local TTS Server
+
+The `tts-server/` folder contains a development-only macOS `say` based mock TTS
+server. It helps test the app's voice-message UI before connecting a paid or
+private TTS provider.
+
+```bash
+cd tts-server
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn server:app --host 127.0.0.1 --port 8000
+```
+
+For physical iPhone testing, run the server on `0.0.0.0` and use your Mac's LAN
+IP in the app settings.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+---
+
 # iOS 虚拟人物生态 App — 完整产品技术蓝图
 
 > 版本：v1.0 | 日期：2026-06-27 | 状态：PRD 草案
