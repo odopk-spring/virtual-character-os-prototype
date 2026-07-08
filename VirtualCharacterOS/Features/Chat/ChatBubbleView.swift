@@ -181,15 +181,10 @@ struct ChatBubbleView: View {
 
     private var voiceBubbleContent: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                Button {
-                    switch voiceAvailability {
-                    case .playable:
-                        voicePlayback?.togglePlayback(for: message, settings: voiceSettings)
-                    case .unavailable(let reason):
-                        voicePlayback?.showUnavailable(reason: reason, for: message.id)
-                    }
-                } label: {
+            Button {
+                handleVoicePlaybackTap()
+            } label: {
+                HStack(spacing: 10) {
                     ZStack {
                         Circle()
                             .fill(voiceAccentColor.opacity(voiceAvailability.isPlayable ? 0.16 : 0.10))
@@ -198,19 +193,20 @@ struct ChatBubbleView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(voiceAccentColor)
                     }
+
+                    voiceWaveform
+
+                    Text(voiceStatusText)
+                        .font(.caption)
+                        .foregroundStyle(voiceAccentColor)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("播放语音")
-
-                voiceWaveform
-
-                Text(voiceStatusText)
-                    .font(.caption)
-                    .foregroundStyle(voiceAccentColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(width: voiceBubbleWidth, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(width: voiceBubbleWidth, alignment: .leading)
+            .buttonStyle(.plain)
+            .accessibilityLabel(voiceAvailability.isPlayable ? "播放语音" : "语音不可播放")
             .background(
                 ChatBubbleShape(
                     side: .left,
@@ -230,6 +226,7 @@ struct ChatBubbleView: View {
                     tailOffset: tailOff
                 )
                 .fill(voiceAccentColor.opacity(0.08))
+                .allowsHitTesting(false)
             )
             .overlay(
                 ChatBubbleShape(
@@ -240,6 +237,7 @@ struct ChatBubbleView: View {
                     tailOffset: tailOff
                 )
                 .stroke(voiceAccentColor.opacity(voiceAvailability.isPlayable ? 0.42 : 0.28), lineWidth: 0.8)
+                .allowsHitTesting(false)
             )
 
             Text(message.content)
@@ -259,6 +257,15 @@ struct ChatBubbleView: View {
         .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
         .contextMenu {
             messageActions
+        }
+    }
+
+    private func handleVoicePlaybackTap() {
+        switch voiceAvailability {
+        case .playable:
+            voicePlayback?.togglePlayback(for: message, settings: voiceSettings)
+        case .unavailable(let reason):
+            voicePlayback?.showUnavailable(reason: reason, for: message.id)
         }
     }
 
